@@ -22,7 +22,6 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.VertexAttributes;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
-import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.g3d.Environment;
@@ -72,6 +71,8 @@ public class Ars3d implements ApplicationListener {
     public PerspectiveCamera cam;
     public CameraInputController camController;
     public ModelBatch modelBatch;
+    public ModelBatch modelBatch2;
+    public ModelBatch modelBatch3;
     public SpriteBatch spriteBatch;
     public Boolean flyMode = true;
 
@@ -82,6 +83,8 @@ public class Ars3d implements ApplicationListener {
     private BlendingAttribute blendingAttribute;
     private BlendingAttribute blendingAttribute2;
     private BlendingAttribute blendingAttribute3;
+    private BlendingAttribute blendingAttribute4;
+    private BlendingAttribute blendingAttribute5;
 
     public Array<ArticleInstance> cylinderSides = new Array<ArticleInstance>();
 
@@ -98,8 +101,8 @@ public class Ars3d implements ApplicationListener {
 
     private CountDownLatch startSignal = new CountDownLatch(1);
 
-    public Map<Float, List<ArticleInstance>> rows = new HashMap<Float, List<ArticleInstance>>();
-    public Map<Float, List<ArticleInstance>> cols = new HashMap<Float, List<ArticleInstance>>();
+    public static Map<Float, List<ArticleInstance>> rows = new HashMap<Float, List<ArticleInstance>>();
+    public static Map<Float, List<ArticleInstance>> cols = new HashMap<Float, List<ArticleInstance>>();
 
     private BitmapFont font;
     private ShaderProgram fontShader;
@@ -113,6 +116,8 @@ public class Ars3d implements ApplicationListener {
 
     Float startPosition;
     Float startRotation;
+
+    public static volatile boolean tapable = true;
 
     public Ars3d(Context context, float position, float rotation) {
         this.context = context;
@@ -141,28 +146,44 @@ public class Ars3d implements ApplicationListener {
         manager.update();
         manager.finishLoading();
 
-        img4 = manager.get("backg.jpg",Texture.class);
-        img5 = manager.get("123750890.jpg",Texture.class);
-        img6 = manager.get("brankic1979-icon-set.jpg",Texture.class);
-        image = manager.get("earthmoon.jpg",Texture.class);
+        img4 = manager.get("backg.jpg", Texture.class);
+        img5 = manager.get("123750890.jpg", Texture.class);
+        img6 = manager.get("brankic1979-icon-set.jpg", Texture.class);
+        image = manager.get("earthmoon.jpg", Texture.class);
 
-        blendingAttribute = new BlendingAttribute(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA, 0.9f);
-        blendingAttribute2 = new BlendingAttribute(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA, 0.2f);
+        blendingAttribute = new BlendingAttribute(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA, 1.0f);
+        blendingAttribute2 = new BlendingAttribute(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA, 0.6f);
         blendingAttribute3 = new BlendingAttribute(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA, 0.2f);
+        blendingAttribute4 = new BlendingAttribute(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA, 0.15f);
+        blendingAttribute5 = new BlendingAttribute(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA, 0.01f);
 
-        modelBatch = new ModelBatch(new RenderContext(new DefaultTextureBinder(DefaultTextureBinder.ROUNDROBIN, 4)));
+        ArsShaderProvider asp = new ArsShaderProvider(Gdx.files.internal("default.vertex3.glsl"),Gdx.files.internal("default.fragment3.glsl"));
+        asp = new ArsShaderProvider();
+
+        modelBatch = new ModelBatch(new RenderContext(new DefaultTextureBinder(DefaultTextureBinder.ROUNDROBIN, 4)),asp,null);
+
+        ArsShaderProvider asp2 = new ArsShaderProvider(Gdx.files.internal("default.vertex.glsl"),Gdx.files.internal("default.fragment.glsl"),
+                Gdx.files.internal("default.vertex.glsl"),Gdx.files.internal("default.fragment2.glsl"));
+
+        modelBatch2 = new ModelBatch(new RenderContext(new DefaultTextureBinder(DefaultTextureBinder.ROUNDROBIN, 4)),
+                asp2,null);
+
+//        modelBatch2 = new ModelBatch(new RenderContext(new DefaultTextureBinder(DefaultTextureBinder.ROUNDROBIN, 4)),
+//                new DefaultShaderProvider(Gdx.files.internal("default.vertex.glsl"),Gdx.files.internal("default.fragment.glsl")),null);
+//        modelBatch3 = new ModelBatch(new RenderContext(new DefaultTextureBinder(DefaultTextureBinder.ROUNDROBIN, 4)),
+//                new DefaultShaderProvider(Gdx.files.internal("default.vertex.glsl"),Gdx.files.internal("default.fragment2.glsl")),null);
 
         cam = new PerspectiveCamera(67f, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         cam.position.set(0.0f, 0.0f, -5.6f);
-        if(startPosition != null) {
+        if (startPosition != null) {
             cam.position.set(0.0f, 0.0f, startPosition);
         }
         cam.lookAt(0.0f, 0.0f, 0.0f);
         cam.near = 0.01f;
         cam.far = 100f;
 
-        if(startRotation != null) {
-            cam.up.rotate(startRotation,0f,0f,1.01f);
+        if (startRotation != null) {
+            cam.up.rotate(startRotation, 0f, 0f, 1.01f);
             cam.update();
         }
 
@@ -186,32 +207,44 @@ public class Ars3d implements ApplicationListener {
         pm = new Pixmap(Gdx.files.internal("txt3.png"));
         FileHandle fh = Gdx.files.internal("objs2.json");
 
+//        ShaderProgram sp = new ShaderProgram(Gdx.files.internal("default.vertex.glsl"),Gdx.files.internal("default.fragment2.glsl"));
+
+
+
         ImagePane[] ips = gson.fromJson(fh.reader(), ImagePane[].class);
         for (ImagePane ip : ips) {
             if (count % 2 == 0) {
                 mb.begin();
                 MeshPartBuilder mpb = mb.part("cylinderA" + count, GL20.GL_TRIANGLES,
                         VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates,
-                        new Material(ColorAttribute.createDiffuse(Color.WHITE), /*TextureAttribute.createDiffuse(img5),*/ blendingAttribute));
+                        new Material(ColorAttribute.createDiffuse(Color.WHITE), /*TextureAttribute.createDiffuse(img5),*/ blendingAttribute2));
                 mpb.sphere(6f, 6f, 6f, 120, 120, ip.uFrom, ip.uTo, ip.vFrom, ip.vTo);
                 MeshBuilder meshBuilder = new MeshBuilder();
                 meshBuilder.begin(VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, GL20.GL_TRIANGLES);
-                meshBuilder.sphere2(6.015f, 6.015f, 6.015f, 200, 2, ip.uFrom, ip.uTo, ip.vTo-4, ip.vTo,0.5f,1.0f);
+                meshBuilder.sphere2(6.015f, 6.015f, 6.015f, 200, 2, ip.uFrom, ip.uTo, ip.vTo - 4, ip.vTo, 0.9f, 1.0f);
                 Mesh mesh1 = meshBuilder.end();
-                mb.part("cylinderB",mesh1,GL20.GL_TRIANGLES,new Material(blendingAttribute));
+                mb.part("cylinderB", mesh1, GL20.GL_TRIANGLES, new Material(blendingAttribute3));
+                meshBuilder = new MeshBuilder();
+                meshBuilder.begin(VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, GL20.GL_TRIANGLES);
+                meshBuilder.sphere2(5.985f, 5.985f, 5.985f, 200, 2, ip.uFrom, ip.uTo, ip.vTo - 4, ip.vTo, 0.9f, 1.0f);
+                mesh1 = meshBuilder.end();
+                mb.part("cylinderC", mesh1, GL20.GL_TRIANGLES, new Material(blendingAttribute3));
                 model = mb.end();
             } else {
                 mb.begin();
                 MeshPartBuilder mpb = mb.part("cylinderA" + count, GL20.GL_TRIANGLES,
                         VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates,
-                        new Material(ColorAttribute.createDiffuse(Color.WHITE), /*TextureAttribute.createDiffuse(img4),*/ blendingAttribute));
+                        new Material(ColorAttribute.createDiffuse(Color.WHITE), /*TextureAttribute.createDiffuse(img4),*/ blendingAttribute2));
                 mpb.sphere(6f, 6f, 6f, 120, 120, ip.uFrom, ip.uTo, ip.vFrom, ip.vTo);
                 MeshBuilder meshBuilder = new MeshBuilder();
                 meshBuilder.begin(VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, GL20.GL_TRIANGLES);
-                meshBuilder.sphere2(6.015f, 6.015f, 6.015f, 200, 2, ip.uFrom, ip.uTo, ip.vTo-4, ip.vTo,0.5f,1.0f);
+                meshBuilder.sphere2(6.015f, 6.015f, 6.015f, 200, 2, ip.uFrom, ip.uTo, ip.vTo - 4, ip.vTo, 0.9f, 1.0f);
                 Mesh mesh1 = meshBuilder.end();
-                mb.part("cylinderB",mesh1,GL20.GL_TRIANGLES,new Material(blendingAttribute));
-
+                mb.part("cylinderB", mesh1, GL20.GL_TRIANGLES, new Material(blendingAttribute3));
+                meshBuilder.begin(VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, GL20.GL_TRIANGLES);
+                meshBuilder.sphere2(5.985f, 5.985f, 5.985f, 200, 2, ip.uFrom, ip.uTo, ip.vTo - 4, ip.vTo, 0.9f, 1.0f);
+                mesh1 = meshBuilder.end();
+                mb.part("cylinderC", mesh1, GL20.GL_TRIANGLES, new Material(blendingAttribute3));
                 model = mb.end();
             }
             instance2 = new ArticleInstance(model, ip.center, ip.dimensions, ip.radius, ip.bounds, ip.row, ip.col, 30l, count * 400);
@@ -304,7 +337,6 @@ public class Ars3d implements ApplicationListener {
 //
 
 
-
         camController = new CameraInputController(cam);
         camController.pinchZoomFactor = 6f;
         MyGestureListener myGestureListener = new MyGestureListener(this);
@@ -315,7 +347,7 @@ public class Ars3d implements ApplicationListener {
 
         model = mb.createSphere(6f, 6f, 6f, 120, 120,
                 new Material(ColorAttribute.createDiffuse(Color.WHITE),
-                        blendingAttribute2),
+                        blendingAttribute4),
                 VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates,
                 0f, 360f, 0f, 50f
         );
@@ -324,7 +356,7 @@ public class Ars3d implements ApplicationListener {
 
         model = mb.createSphere(6f, 6f, 6f, 120, 120,
                 new Material(ColorAttribute.createDiffuse(Color.WHITE),
-                        blendingAttribute2),
+                        blendingAttribute4),
                 VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates,
                 0f, 360f, 130f, 180f
         );
@@ -332,11 +364,12 @@ public class Ars3d implements ApplicationListener {
         sbot = new ModelInstance(model);
 
         startSignal.countDown();
-        if(NewApplication.getInstance().mBound) {
-            new Thread( new Runnable() {
+
+        if (NewApplication.getInstance().mBound) {
+            new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    Log.e("Handler","Called Parse");
+                    Log.e("Handler", "Called Parse");
                     NewApplication.getInstance().mService.parse();
                 }
             }).start();
@@ -348,17 +381,17 @@ public class Ars3d implements ApplicationListener {
     public RotateGlobe rg = null;
 
     public void startRotateGlobe(float deg) {
-        if(rg != null) {
+        if (rg != null) {
             rg.running = false;
         }
 
-        rg = new RotateGlobe(camController,deg);
+        rg = new RotateGlobe(camController, deg);
 
         new Thread(rg).start();
     }
 
     public void stopRotateGlobe() {
-        if(rg != null) {
+        if (rg != null) {
             rg.running = false;
         }
     }
@@ -376,7 +409,7 @@ public class Ars3d implements ApplicationListener {
 
         @Override
         public void run() {
-            if(cameraInputController != null && cameraInputController.camera != null && cameraInputController.camera.up != null) {
+            if (cameraInputController != null && cameraInputController.camera != null && cameraInputController.camera.up != null) {
                 while (running) {
                     cameraInputController.camera.up.rotate(degrees, 0f, 0f, 1.01f);
                     cameraInputController.camera.update();
@@ -408,23 +441,106 @@ public class Ars3d implements ApplicationListener {
 
         @Override
         public void run() {
-            for (int count = 0; count < rotateCycles; count++) {
-                try {
-                    Thread.sleep(cycleTime);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
+            try {
+                tapable = false;
                 List<ArticleInstance> row = ars3d.rows.get(rowId);
-                for (ArticleInstance ai : row) {
-                    ai.transform.rotate(0.0f, 600.0f, 0.0f, degreesToRotate);
-                    ai.center.rotate(new Vector3(0.0f, 600.0f, 0.0f), degreesToRotate);
-                    ai.dimensions.rotate(new Vector3(0.0f, 600.0f, 0.0f), degreesToRotate);
+                if(row != null) {
+                    for (int count = 0; count < rotateCycles; count++) {
+                        try {
+                            Thread.sleep(cycleTime);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        for (ArticleInstance ai : row) {
+                            ai.transform.rotate(0.0f, 600.0f, 0.0f, degreesToRotate);
+                            ai.center.rotate(new Vector3(0.0f, 600.0f, 0.0f), degreesToRotate);
+                            ai.dimensions.rotate(new Vector3(0.0f, 600.0f, 0.0f), degreesToRotate);
+                        }
+                    }
+                    for (ArticleInstance ai2 : row) {
+                        if (degreesToRotate > 0) {
+                            float newRowId = ai2.col - 1;
+                            if (newRowId < 0) {
+                                newRowId = 8;
+                            }
+                            ai2.col = newRowId;
+                        } else {
+                            float newRowId = ai2.col + 1;
+                            if (newRowId > 8) {
+                                newRowId = 0;
+                            }
+                            ai2.col = newRowId;
+                        }
+                        cols.get(ai2.col).set((int)rowId,ai2);
+
+                    }
+
+                    resetColumns(rowId);
+                    resetBlending = true;
                 }
+            } finally {
+                tapable = true;
             }
+        }
+
+
+        private void resetColumns (float rowId) {
+//            List<ArticleInstance> row0 = ars3d.rows.get(0f);
+//            List<ArticleInstance> row1 = ars3d.rows.get(1f);
+//            List<ArticleInstance> row2 = ars3d.rows.get(2f);
+//
+//            List<ArticleInstance> rowToProcess;
+//            if(rowId == 0.0f) {
+//                rowToProcess = row0;
+//            } else if(rowId == 1.0f) {
+//                rowToProcess = row1;
+//            } else {
+//                rowToProcess = row2;
+//            }
+//
+//            for(int i = 0; i < rowToProcess.size(); i++) {
+//
+//                float colToCorrect = rowToProcess.get(i).col;
+//
+//                row0.get(i).col = colToCorrect;
+//                row1.get(i).col = colToCorrect;
+//                row2.get(i).col = colToCorrect;
+//            }
+
+
+
+            List<ArticleInstance> row0 = ars3d.rows.get(0f);
+            List<ArticleInstance> row1 = ars3d.rows.get(1f);
+            List<ArticleInstance> row2 = ars3d.rows.get(2f);
+            for(int i = 0; i < row0.size(); i++) {
+                float col0val = row0.get(i).col;
+                float col1val = row1.get(i).col;
+                float col2val = row2.get(i).col;
+
+//                List<ArticleInstance> newCol = new ArrayList<ArticleInstance>();
+                if(col0val == col1val) {
+                    row0.get(i).col = col2val;
+                    row1.get(i).col = col2val;
+
+                } else if(col0val == col2val) {
+                    row0.get(i).col = col1val;
+                    row2.get(i).col = col1val;
+                } else if(col1val == col2val) {
+                    row1.get(i).col = col0val;
+                    row2.get(i).col = col0val;
+                }
+//                newCol.add(row0.get(i));
+//                newCol.add(row1.get(i));
+//                newCol.add(row2.get(i));
+//                cols.put(new Float(row0.get(i).col), newCol);
+
+            }
+
+
         }
     }
 
-    public void startAllGlobeRotation () {
+    public void startAllGlobeRotation() {
         final RotateAll rr = new RotateAll(this, cylinderSides, 0.1f, 20l);
         new Thread(rr).start();
     }
@@ -467,15 +583,19 @@ public class Ars3d implements ApplicationListener {
 
     int count = 0;
 
-    boolean firstRender;
+    public static boolean incenter = true;
+    public static boolean resetBlending = false;
+    public Float prevCol = new Float(6.0);
+//    boolean orientationChange = false;
 
+    ModelBatch modelBatchInternal = null;
     @Override
     public void render() {
         Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
 
         try {
-            if(imageUpdates) {
+            if (imageUpdates) {
                 updateImages();
                 imageUpdates = false;
             }
@@ -487,132 +607,222 @@ public class Ars3d implements ApplicationListener {
         camController.update();
         Gdx.gl.glDisable(GL20.GL_CULL_FACE);
 
+
+        //x = a+r\,\cos t,\,
+//        Double r = Math.sqrt((cam.position.x*cam.position.x) + (cam.position.y*cam.position.y));
+//        double xz = cam.position.x/r;
+//        double angel = Math.acos(xz);
+//        Log.e("Sphere","Inside Sphere [" + angel + "]");
+
+//        Log.e("Sphere","Inside Sphere [" + cam.position + "]");
+        float distToCenter = cam.position.dst2(0f, 0f, 0f);
+//        float distToCenter2 = cam.position.dst2(0f,0f,0f);
+//        Log.e("Sphere","[" + cam.position.toString() + "] " +" [" + Math.sqrt(distToCenter) + "] " + " [" + Math.sqrt(distToCenter2) + "]");
+        if (distToCenter < 9.0f && !incenter) {
+            incenter = true;
+            modelBatchInternal = modelBatch2;
+//            Log.e("Sphere","Inside Sphere [" + distToCenter + "]");
+//            orientationChange = true;
+        } else if (distToCenter > 9.0f && incenter) {
+            incenter = false;
+            modelBatchInternal = modelBatch;
+//            Log.e("Sphere","Outside Sphere [" + distToCenter + "]");
+//            orientationChange = true;
+        }
+
         spriteBatch.begin();
         spriteBatch.draw(manager.get(Gdx.files.internal("earthmoon.jpg").path(), Texture.class), 0f, 0f, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         spriteBatch.end();
 
-        modelBatch.begin(cam);
+        if(modelBatchInternal != null) {
+            modelBatchInternal.begin(cam);
 
-        Gdx.graphics.getGL20().glEnable(GL20.GL_BLEND);
+            Gdx.graphics.getGL20().glEnable(GL20.GL_BLEND);
 
-        List<ArticleInstance> row1 = rows.get(1.0f);
+            List<ArticleInstance> row1 = rows.get(1.0f);
 
-        boolean wasUpdate = false;
 
-        for (ArticleInstance ai : row1) {
-            if (ai.update) {
-                wasUpdate = true;
-                Material material = ai.materials.get(0);
-                if (ai.arsEntity.localImgPath != null) {
-                    if(manager.isLoaded(Gdx.files.absolute(ai.arsEntity.localImgPath).path())) {
-                        material.set(TextureAttribute.createDiffuse(manager.get(new AssetDescriptor<Texture>(Gdx.files.absolute(ai.arsEntity.localImgPath).path(), Texture.class))));
+            for (ArticleInstance ai : row1) {
+                if (ai.update) {
+                    Material material = ai.materials.get(0);
+                    if (ai.arsEntity.localImgPath != null) {
+                        if (manager.isLoaded(Gdx.files.absolute(ai.arsEntity.localImgPath).path())) {
+                            if (ai.flipped) {
+
+                            } else {
+                                material.set(TextureAttribute.createDiffuse(manager.get(new AssetDescriptor<Texture>(Gdx.files.absolute(ai.arsEntity.localImgPath).path(), Texture.class))));
+                            }
+                            material = ai.materials.get(1);
+                            Material material2 = ai.materials.get(2);
+                            if (ai.arsEntity.title != null) {
+                                Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
+                                if (tmpTexture2 != null) {
+                                    material.set(TextureAttribute.createDiffuse(tmpTexture2));
+                                    material.id = "st";
+                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2));
+                                    material2.id = "st";
+                                }
+                            }
+                            ai.update = false;
+                        }
+                    } else {
+                        material.set(TextureAttribute.createDiffuse(manager.get(Gdx.files.internal("backg.jpg").path(), Texture.class)));
                         material = ai.materials.get(1);
+                        Material material2 = ai.materials.get(2);
                         if (ai.arsEntity.title != null) {
                             Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
                             if (tmpTexture2 != null) {
-                                material.set(TextureAttribute.createDiffuse(tmpTexture2));
+                                material.set(TextureAttribute.createDiffuse(tmpTexture2), blendingAttribute);
+                                material.id = "st";
+                                material2.set(TextureAttribute.createDiffuse(tmpTexture2));
+                                material2.id = "st";
                             }
                         }
                         ai.update = false;
                     }
-                } else {
-                    material.set(TextureAttribute.createDiffuse(manager.get(Gdx.files.internal("backg.jpg").path(), Texture.class)));
-                    material = ai.materials.get(1);
-                    if (ai.arsEntity.title != null) {
-                        Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
-                        if (tmpTexture2 != null) {
-                            material.set(TextureAttribute.createDiffuse(tmpTexture2), blendingAttribute);
-                        }
-                    }
-                    ai.update = false;
+
                 }
-
             }
-        }
 
-        List<ArticleInstance> row2 = rows.get(2.0f);
+            List<ArticleInstance> row2 = rows.get(2.0f);
 
-        for (ArticleInstance ai : row2) {
-            if (ai.update) {
-                wasUpdate = true;
-                Material material = ai.materials.get(0);
-                if (ai.arsEntity.localImgPath != null) {
-                    if(manager.isLoaded(Gdx.files.absolute(ai.arsEntity.localImgPath).path())) {
-                        material.set(TextureAttribute.createDiffuse(manager.get(new AssetDescriptor<Texture>(Gdx.files.absolute(ai.arsEntity.localImgPath).path(), Texture.class))));
+            for (ArticleInstance ai : row2) {
+                if (ai.update) {
+                    Material material = ai.materials.get(0);
+                    if (ai.arsEntity.localImgPath != null) {
+                        if (manager.isLoaded(Gdx.files.absolute(ai.arsEntity.localImgPath).path())) {
+                            material.set(TextureAttribute.createDiffuse(manager.get(new AssetDescriptor<Texture>(Gdx.files.absolute(ai.arsEntity.localImgPath).path(), Texture.class))));
+                            material = ai.materials.get(1);
+                            Material material2 = ai.materials.get(2);
+                            if (ai.arsEntity.title != null) {
+                                Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
+                                if (tmpTexture2 != null) {
+                                    material.set(TextureAttribute.createDiffuse(tmpTexture2));
+                                    material.id = "st";
+                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2));
+                                    material2.id = "st";
+                                }
+                            }
+                            ai.update = false;
+                        }
+                    } else {
+                        material.set(TextureAttribute.createDiffuse(manager.get(Gdx.files.internal("backg.jpg").path(), Texture.class)));
                         material = ai.materials.get(1);
+                        Material material2 = ai.materials.get(2);
                         if (ai.arsEntity.title != null) {
                             Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
                             if (tmpTexture2 != null) {
                                 material.set(TextureAttribute.createDiffuse(tmpTexture2));
+                                material.id = "st";
+                                material2.set(TextureAttribute.createDiffuse(tmpTexture2));
+                                material2.id = "st";
                             }
                         }
                         ai.update = false;
                     }
-                } else {
-                    material.set(TextureAttribute.createDiffuse(manager.get(Gdx.files.internal("backg.jpg").path(), Texture.class)));
-                    material = ai.materials.get(1);
-                    if (ai.arsEntity.title != null) {
-                        Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
-                        if (tmpTexture2 != null) {
-                            material.set(TextureAttribute.createDiffuse(tmpTexture2));
-                        }
-                    }
-                    ai.update = false;
+
                 }
-
             }
-        }
 
-        List<ArticleInstance> row0 = rows.get(0.0f);
+            List<ArticleInstance> row0 = rows.get(0.0f);
 
-        for (ArticleInstance ai : row0) {
-            if (ai.update) {
-                wasUpdate = true;
-                Material material = ai.materials.get(0);
-                if (ai.arsEntity.localImgPath != null) {
-                    if(manager.isLoaded(Gdx.files.absolute(ai.arsEntity.localImgPath).path())) {
-                        material.set(TextureAttribute.createDiffuse(manager.get(new AssetDescriptor<Texture>(Gdx.files.absolute(ai.arsEntity.localImgPath).path(), Texture.class))));
+            for (ArticleInstance ai : row0) {
+                if (ai.update) {
+                    Material material = ai.materials.get(0);
+                    if (ai.arsEntity.localImgPath != null) {
+                        if (manager.isLoaded(Gdx.files.absolute(ai.arsEntity.localImgPath).path())) {
+                            material.set(TextureAttribute.createDiffuse(manager.get(new AssetDescriptor<Texture>(Gdx.files.absolute(ai.arsEntity.localImgPath).path(), Texture.class))));
+                            material = ai.materials.get(1);
+                            Material material2 = ai.materials.get(2);
+                            if (ai.arsEntity.title != null) {
+                                Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
+                                if (tmpTexture2 != null) {
+                                    material.set(TextureAttribute.createDiffuse(tmpTexture2));
+                                    material.id = "st";
+                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2));
+                                    material2.id = "st";
+                                }
+                            }
+                            ai.update = false;
+                        }
+                    } else {
+                        material.set(TextureAttribute.createDiffuse(manager.get(Gdx.files.internal("backg.jpg").path(), Texture.class)));
                         material = ai.materials.get(1);
+                        Material material2 = ai.materials.get(2);
                         if (ai.arsEntity.title != null) {
                             Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
                             if (tmpTexture2 != null) {
                                 material.set(TextureAttribute.createDiffuse(tmpTexture2));
+                                material.id = "st";
+                                material2.set(TextureAttribute.createDiffuse(tmpTexture2));
+                                material2.id = "st";
                             }
                         }
                         ai.update = false;
                     }
-                } else {
-                    material.set(TextureAttribute.createDiffuse(manager.get(Gdx.files.internal("backg.jpg").path(), Texture.class)));
-                    material = ai.materials.get(1);
-                    if (ai.arsEntity.title != null) {
-                        Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
-                        if (tmpTexture2 != null) {
-                            material.set(TextureAttribute.createDiffuse(tmpTexture2));
-                        }
-                    }
-                    ai.update = false;
+
                 }
-
             }
-        }
 
-        TreeMap<Float, Integer> tm = getByDistance();
-        for (Integer in : tm.descendingMap().values()) {
-            modelBatch.render(cylinderSides.get(in));
-        }
+            TreeMap<Float, Integer> tm = getByDistance();
 
-        if(arrow != null) {
-            modelBatch.render(arrow);
-        }
+            if(resetBlending) {
+                for(ArticleInstance ai3 : cylinderSides) {
+                    ai3.materials.get(0).set(blendingAttribute2);
+                    ai3.materials.get(1).set(blendingAttribute4);
+                    ai3.materials.get(2).set(blendingAttribute4);
+                }
+                resetBlending = false;
+            }
 
-        modelBatch.render(stop);
-        modelBatch.render(sbot);
-        modelBatch.end();
+
+            ArticleInstance closest = cylinderSides.get((Integer) tm.values().toArray()[0]);
+
+            if (incenter) {
+                int objLoc = getObject2(Gdx.graphics.getWidth() / 2, Gdx.graphics.getHeight() / 2);
+                if(objLoc > 0) {
+                    closest = cylinderSides.get(objLoc);
+                }
+            }
+
+            if (closest != null && tapable) {
+                float visCol = closest.col;
+                List<ArticleInstance> rowEntries = cols.get(visCol);
+                for (ArticleInstance ais : rowEntries) {
+                    ais.materials.get(0).set(blendingAttribute);
+                    ais.materials.get(1).set(blendingAttribute);
+                    ais.materials.get(2).set(blendingAttribute);
+                }
+                if (prevCol.compareTo(visCol) != 0) {
+                    rowEntries = cols.get(prevCol);
+                    for (ArticleInstance ais : rowEntries) {
+                        ais.materials.get(0).set(blendingAttribute2);
+                        ais.materials.get(1).set(blendingAttribute4);
+                        ais.materials.get(2).set(blendingAttribute4);
+                    }
+                    prevCol = visCol;
+                }
+            }
+
+
+            for (Integer in : tm.descendingMap().values()) {
+                modelBatchInternal.render(cylinderSides.get(in));
+            }
+
+            if (arrow != null) {
+                modelBatchInternal.render(arrow);
+            }
+
+            modelBatchInternal.render(stop);
+            modelBatchInternal.render(sbot);
+            modelBatchInternal.end();
+        }
     }
 
     @Override
     public void dispose() {
         modelBatch.dispose();
+        modelBatch2.dispose();
         for (ModelInstance mi : cylinderSides) {
             mi.model.dispose();
         }
@@ -652,7 +862,7 @@ public class Ars3d implements ApplicationListener {
 
         @Override
         public boolean touchDown(float x, float y, int pointer, int button) {
-            if(ars3d.flyMode) {
+            if (ars3d.flyMode) {
                 return false;
             } else {
                 return true;
@@ -661,23 +871,25 @@ public class Ars3d implements ApplicationListener {
 
         @Override
         public boolean tap(float x, float y, int count, int button) {
-                int index = getObject((int)Math.round(x),(int)Math.round(y));
-                if(index > 0) {
+            if(tapable) {
+                int index = getObject((int) Math.round(x), (int) Math.round(y));
+                if (index > 0) {
                     Intent intent = new Intent(context, WebViewActivity.class);
                     ArticleInstance ai = cylinderSides.get(index);
-                    if(ai != null && ai.arsEntity != null && ai.arsEntity.getLink() != null && !ai.arsEntity.getLink().isEmpty()) {
+                    if (ai != null && ai.arsEntity != null && ai.arsEntity.getLink() != null && !ai.arsEntity.getLink().isEmpty()) {
                         intent.putExtra(WebViewActivity.URL, cylinderSides.get(index).arsEntity.getLink());
                         if (ars3d.parent != null) {
                             ars3d.parent.startActivity(intent);
                         }
                     }
                 }
-                return false;
+            }
+            return false;
         }
 
         @Override
         public boolean longPress(float x, float y) {
-            if(ars3d.flyMode) {
+            if (ars3d.flyMode) {
                 return false;
             } else {
                 return true;
@@ -686,7 +898,7 @@ public class Ars3d implements ApplicationListener {
 
         @Override
         public boolean fling(float velocityX, float velocityY, int button) {
-            if(ars3d.flyMode) {
+            if (ars3d.flyMode) {
                 return false;
             } else {
                 return true;
@@ -699,10 +911,10 @@ public class Ars3d implements ApplicationListener {
 
         @Override
         public boolean pan(float x, float y, float deltaX, float deltaY) {
-            if(ars3d.flyMode) {
+            if (ars3d.flyMode) {
                 return false;
             } else {
-                if(firstPan) {
+                if (firstPan) {
                     panStartX = x;
                     panStartY = y;
                     firstPan = false;
@@ -714,18 +926,27 @@ public class Ars3d implements ApplicationListener {
 
         @Override
         public boolean panStop(float x, float y, int pointer, int button) {
-            if(ars3d.flyMode) {
+            if (ars3d.flyMode) {
                 return false;
             } else {
-                int startIndex = getObject((int)Math.round(panStartX),(int)Math.round(panStartY));
-                if(startIndex > 0 ) {// && stopIndex > 0) {
+                int startIndex = getObject((int) Math.round(panStartX), (int) Math.round(panStartY));
+                if (startIndex > 0) {// && stopIndex > 0) {
                     ArticleInstance aeStart = cylinderSides.get(startIndex);
-                        float deg = -0.4f;
-                        if(panStartX < x) {
+                    float deg = -0.4f;
+                    if (panStartX < x) {
+                        deg = 0.4f;
+                    }
+
+                    if(incenter) {
+                        if(deg == 0.4f) {
+                            deg = -0.4f;
+                        } else {
                             deg = 0.4f;
                         }
-                        final RotateRow rr = new RotateRow(ars3d, aeStart.row, deg, 100, 5l);
-                        new Thread(rr).start();
+                    }
+
+                    final RotateRow rr = new RotateRow(ars3d, aeStart.row, deg, 100, 5l);
+                    new Thread(rr).start();
                 }
                 firstPan = true;
 
@@ -735,8 +956,8 @@ public class Ars3d implements ApplicationListener {
         }
 
         @Override
-        public boolean zoom (float originalDistance, float currentDistance){
-            if(ars3d.flyMode) {
+        public boolean zoom(float originalDistance, float currentDistance) {
+            if (ars3d.flyMode) {
                 return false;
             } else {
                 return true;
@@ -744,15 +965,15 @@ public class Ars3d implements ApplicationListener {
         }
 
         @Override
-        public boolean pinch (Vector2 initialFirstPointer, Vector2 initialSecondPointer, Vector2 firstPointer, Vector2 secondPointer){
-            if(ars3d.flyMode) {
+        public boolean pinch(Vector2 initialFirstPointer, Vector2 initialSecondPointer, Vector2 firstPointer, Vector2 secondPointer) {
+            if (ars3d.flyMode) {
                 return false;
             } else {
                 return true;
             }
         }
 
-        public void setSelected (int value) {
+        public void setSelected(int value) {
             if (selected == value) return;
             if (selected >= 0) {
             }
@@ -768,7 +989,7 @@ public class Ars3d implements ApplicationListener {
             }
         }
 
-        public int getObject (int screenX, int screenY) {
+        public int getObject(int screenX, int screenY) {
             cam.update();
             Ray ray = cam.getPickRay(screenX, screenY);
 
@@ -781,11 +1002,11 @@ public class Ars3d implements ApplicationListener {
                 instance.transform.getTranslation(position);
                 position.add(instance.center);
 
-                final float len = ray.direction.dot(position.x-ray.origin.x, position.y-ray.origin.y, position.z-ray.origin.z);
+                final float len = ray.direction.dot(position.x - ray.origin.x, position.y - ray.origin.y, position.z - ray.origin.z);
                 if (len < 0f)
                     continue;
 
-                float dist2 = position.dst2(ray.origin.x+ray.direction.x*len, ray.origin.y+ray.direction.y*len, ray.origin.z+ray.direction.z*len);
+                float dist2 = position.dst2(ray.origin.x + ray.direction.x * len, ray.origin.y + ray.direction.y * len, ray.origin.z + ray.direction.z * len);
                 if (distance >= 0f && dist2 > distance)
                     continue;
 
@@ -796,6 +1017,35 @@ public class Ars3d implements ApplicationListener {
             }
             return result;
         }
+    }
+
+    public int getObject2(int screenX, int screenY) {
+        cam.update();
+        Ray ray = cam.getPickRay(screenX, screenY);
+
+        int result = -1;
+        float distance = -1;
+
+        for (int i = 0; i < cylinderSides.size; ++i) {
+            final ArticleInstance instance = cylinderSides.get(i);
+
+            instance.transform.getTranslation(position);
+            position.add(instance.center);
+
+            final float len = ray.direction.dot(position.x - ray.origin.x, position.y - ray.origin.y, position.z - ray.origin.z);
+            if (len < 0f)
+                continue;
+
+            float dist2 = position.dst2(ray.origin.x + ray.direction.x * len, ray.origin.y + ray.direction.y * len, ray.origin.z + ray.direction.z * len);
+            if (distance >= 0f && dist2 > distance)
+                continue;
+
+            if (dist2 <= instance.radius * instance.radius) {
+                result = i;
+                distance = dist2;
+            }
+        }
+        return result;
     }
 
     private Vector3 position = new Vector3();
@@ -819,14 +1069,14 @@ public class Ars3d implements ApplicationListener {
         }
         TreeSet<ArsEntity> treeSet = NewApplication.getInstance().getItemsTreeSet();
 
-        Log.e("TreeSet","size is " + treeSet.size());
+        Log.e("TreeSet", "size is " + treeSet.size());
 
         synchronized (treeSet) {
             Iterator<ArsEntity> it = treeSet.iterator();
             List<ArticleInstance> row = rows.get(1.0f);
 
             if (it != null) {
-                Log.e("TreeSet","row 1 size is " + row.size());
+                Log.e("TreeSet", "row 1 size is " + row.size());
                 for (int i = 0; i < row.size() && it.hasNext(); i++) {
                     ArsEntity tmpEntity = it.next();
                     Log.w("Ars3dArs1", tmpEntity.toString());
@@ -835,9 +1085,9 @@ public class Ars3d implements ApplicationListener {
                         ai.arsEntity = tmpEntity;
                         textureMap2.put(ai.arsEntity.getTitle(), new Texture(textToTexture(ai.arsEntity.getTitle())));
                         ai.update = true;
-                        if(ai.arsEntity.getLocalImgPath() != null && !ai.arsEntity.getLocalImgPath().isEmpty()) {
+                        if (ai.arsEntity.getLocalImgPath() != null && !ai.arsEntity.getLocalImgPath().isEmpty()) {
                             AssetDescriptor ad = new AssetDescriptor(Gdx.files.absolute(ai.arsEntity.localImgPath), Texture.class);
-                            if(ad.file.exists()) {
+                            if (ad.file.exists()) {
                                 manager.load(ad);
                             } else {
                                 ai.arsEntity.setLocalImgPath(null);
@@ -846,7 +1096,7 @@ public class Ars3d implements ApplicationListener {
                     }
                 }
                 row = rows.get(0.0f);
-                Log.e("TreeSet","row 0 size is " + row.size());
+                Log.e("TreeSet", "row 0 size is " + row.size());
                 for (int i = 0; i < row.size() && it.hasNext(); i++) {
                     ArsEntity tmpEntity = it.next();
                     Log.w("Ars3dArs0", tmpEntity.toString());
@@ -855,9 +1105,9 @@ public class Ars3d implements ApplicationListener {
                         ai.arsEntity = tmpEntity;
                         textureMap2.put(ai.arsEntity.getTitle(), new Texture(textToTexture(ai.arsEntity.getTitle())));
                         ai.update = true;
-                        if(ai.arsEntity.getLocalImgPath() != null && !ai.arsEntity.getLocalImgPath().isEmpty()) {
+                        if (ai.arsEntity.getLocalImgPath() != null && !ai.arsEntity.getLocalImgPath().isEmpty()) {
                             AssetDescriptor ad = new AssetDescriptor(Gdx.files.absolute(ai.arsEntity.localImgPath), Texture.class);
-                            if(ad.file.exists()) {
+                            if (ad.file.exists()) {
                                 manager.load(ad);
                             } else {
                                 ai.arsEntity.setLocalImgPath(null);
@@ -866,7 +1116,7 @@ public class Ars3d implements ApplicationListener {
                     }
                 }
                 row = rows.get(2.0f);
-                Log.e("TreeSet","row 2 size is " + row.size());
+                Log.e("TreeSet", "row 2 size is " + row.size());
                 for (int i = 0; i < row.size() && it.hasNext(); i++) {
                     ArsEntity tmpEntity = it.next();
                     Log.w("Ars3dArs2", tmpEntity.toString());
@@ -875,9 +1125,9 @@ public class Ars3d implements ApplicationListener {
                         ai.arsEntity = tmpEntity;
                         textureMap2.put(ai.arsEntity.getTitle(), new Texture(textToTexture(ai.arsEntity.getTitle())));
                         ai.update = true;
-                        if(ai.arsEntity.getLocalImgPath() != null && !ai.arsEntity.getLocalImgPath().isEmpty()) {
+                        if (ai.arsEntity.getLocalImgPath() != null && !ai.arsEntity.getLocalImgPath().isEmpty()) {
                             AssetDescriptor ad = new AssetDescriptor(Gdx.files.absolute(ai.arsEntity.localImgPath), Texture.class);
-                            if(ad.file.exists()) {
+                            if (ad.file.exists()) {
                                 manager.load(ad);
                             } else {
                                 ai.arsEntity.setLocalImgPath(null);
@@ -909,6 +1159,8 @@ public class Ars3d implements ApplicationListener {
         public long textSleepTime;
         public long initialPause;
 
+        public boolean flipped = false;
+
         public ArticleInstance(Model model, Vector3 center, Vector3 dimensions, float radius, BoundingBox bounds,
                                float row, float col, long textSleepTime, long initialPause) {
             super(model);
@@ -938,17 +1190,17 @@ public class Ars3d implements ApplicationListener {
             radius = dimensions.len() / 2f;
         }
 
-        public void startSpinner () {
-            if(textSpinnerThread == null) {
-                textSpinner = new TextSpinner(this,textSleepTime,initialPause);
+        public void startSpinner() {
+            if (textSpinnerThread == null) {
+                textSpinner = new TextSpinner(this, textSleepTime, initialPause);
                 textSpinnerThread = new Thread(textSpinner);
                 textSpinnerThread.start();
             }
 
         }
 
-        public void stopSpinner () {
-            if(textSpinner != null) {
+        public void stopSpinner() {
+            if (textSpinner != null) {
                 textSpinner.stopSpinner();
                 textSpinnerThread = null;
                 textSpinner = null;
@@ -960,6 +1212,7 @@ public class Ars3d implements ApplicationListener {
 
         public ArticleInstance ai;
         public static float[] all2 = new float[10000];
+        public static float[] all2Back = new float[10000];
         public long sleepTime;
         public long initialPause;
         public boolean running = true;
@@ -984,21 +1237,48 @@ public class Ars3d implements ApplicationListener {
             while (running) {
                 MeshPart meshPart = ai.nodes.get(0).parts.get(1).meshPart;
                 Mesh mesh = meshPart.mesh;
+                MeshPart meshPartBack = ai.nodes.get(0).parts.get(2).meshPart;
+                Mesh meshBack = meshPartBack.mesh;
 
                 int cap2 = mesh.getVerticesBuffer().capacity();
                 mesh.getVerticesBuffer().limit(cap2);
+                meshBack.getVerticesBuffer().limit(cap2);
 
                 synchronized (all2) {
                     mesh.getVertices(0, cap2, all2);
+                    meshBack.getVertices(0, cap2, all2Back);
 
-                    for (int i = 6; i < cap2; i += 8) {
-                        float tmp = all2[i] + .005f;
-                        if (tmp > 1.0) {
-                            tmp = tmp - 1.0f; //tmp = 0.0f;//tmp + 1.0f;
+                    if(incenter) {
+                        for (int i = 6; i < cap2; i += 8) {
+                            float tmp = all2[i] - .005f;
+                            if (tmp < 0.0) {
+                                tmp = tmp + 1.0f; //tmp = 0.0f;//tmp + 1.0f;
+                            }
+                            all2[i] = tmp;
+
+                            float tmp2 = all2Back[i] - .005f;
+                            if (tmp2 < 0.0) {
+                                tmp2 = tmp2 + 1.0f; //tmp = 0.0f;//tmp + 1.0f;
+                            }
+                            all2Back[i] = tmp2;
                         }
-                        all2[i] = tmp;
+                    } else {
+                        for (int i = 6; i < cap2; i += 8) {
+                            float tmp = all2[i] + .005f;
+                            if (tmp > 1.0) {
+                                tmp = tmp - 1.0f; //tmp = 0.0f;//tmp + 1.0f;
+                            }
+                            all2[i] = tmp;
+
+                            float tmp2 = all2Back[i] + .005f;
+                            if (tmp2 > 1.0) {
+                                tmp2 = tmp2 - 1.0f; //tmp = 0.0f;//tmp + 1.0f;
+                            }
+                            all2Back[i] = tmp2;
+                        }
                     }
                     mesh.setVertices(all2, 0, cap2);
+                    meshBack.setVertices(all2Back, 0, cap2);
                 }
                 try {
                     Thread.sleep(sleepTime);
@@ -1122,39 +1402,39 @@ public class Ars3d implements ApplicationListener {
         }
     }
 
-    private Pixmap textToTexture (String text) {
+    private Pixmap textToTexture(String text) {
         BitmapFont.TextBounds tb = font.getBounds(text);
 
         int totalWidth = 52;
-        for(char ch : text.toCharArray()) {
+        for (char ch : text.toCharArray()) {
             BitmapFont.Glyph glyph = font.getData().getGlyph(ch);
-            if(ch != 32 && glyph != null) {
+            if (ch != 32 && glyph != null) {
                 totalWidth += (glyph.width);
             } else {
                 totalWidth += 26;
             }
         }
 
-        Pixmap pm2 = new Pixmap((totalWidth + 260),143, pm.getFormat());
+        Pixmap pm2 = new Pixmap((totalWidth + 260), 143, pm.getFormat());
 
         int currentWidth = 52;
-        for(char ch : text.toCharArray()) {
+        for (char ch : text.toCharArray()) {
             BitmapFont.Glyph glyph = font.getData().getGlyph(ch);
-            if(ch != 32 && glyph != null) {
+            if (ch != 32 && glyph != null) {
                 pm2.drawPixmap(pm, glyph.srcX, glyph.srcY, glyph.width, glyph.height, currentWidth, Math.abs(glyph.height + glyph.yoffset), glyph.width, glyph.height);
                 currentWidth += (glyph.width);
             } else {
                 currentWidth += 26;
             }
 
-            if(ch == 'f') {
+            if (ch == 'f') {
                 currentWidth -= 15;
             }
         }
 
-        if(pm2.getWidth() > 4048) {
+        if (pm2.getWidth() > 4048) {
             Pixmap tmp = new Pixmap(4048, 143, pm.getFormat());
-            tmp.drawPixmap(pm2,0,0,4048,143,0,0,4048,143);
+            tmp.drawPixmap(pm2, 0, 0, 4048, 143, 0, 0, 4048, 143);
             pm2 = tmp;
         }
         return pm2;

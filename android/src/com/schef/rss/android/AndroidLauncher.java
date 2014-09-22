@@ -42,8 +42,6 @@ public class AndroidLauncher extends AndroidApplication {
 
         cfg.hideStatusBar = false;
 
-//        initialize(new Drop(),cfg);
-
         ars3d = new Ars3d(getApplicationContext(), this);
         View vw = initializeForView(ars3d, cfg);
         FrameLayout rl = (FrameLayout)findViewById(R.id.content_frame);
@@ -119,19 +117,6 @@ public class AndroidLauncher extends AndroidApplication {
          @Override
          public void onClick(View v) {
              if(clicked) {
-                 Drawable drawable = v.getResources().getDrawable(R.drawable.checked);
-                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-                     v.setBackground(drawable);
-                 }
-                 else {
-                     v.setBackgroundDrawable(drawable);
-                 }
-                 ((ImageView)v).setImageDrawable(v.getResources().getDrawable(R.drawable.whand));
-                 clicked = false;
-                 ars3d.flyMode = false;
-                 Toast.makeText(v.getContext(), "Touch Mode Enabled",
-                         Toast.LENGTH_SHORT).show();
-             } else {
                  Drawable drawable = v.getResources().getDrawable(R.drawable.unchecked);
                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
                      v.setBackground(drawable);
@@ -140,6 +125,19 @@ public class AndroidLauncher extends AndroidApplication {
                      v.setBackgroundDrawable(drawable);
                  }
                  ((ImageView)v).setImageDrawable(v.getResources().getDrawable(R.drawable.plane));
+                 clicked = false;
+                 ars3d.flyMode = false;
+                 Toast.makeText(v.getContext(), "Touch Mode Enabled",
+                         Toast.LENGTH_SHORT).show();
+             } else {
+                 Drawable drawable = v.getResources().getDrawable(R.drawable.checked);
+                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+                     v.setBackground(drawable);
+                 }
+                 else {
+                     v.setBackgroundDrawable(drawable);
+                 }
+                 ((ImageView)v).setImageDrawable(v.getResources().getDrawable(R.drawable.whand));
                  ars3d.flyMode = true;
                  clicked = true;
                  Toast.makeText(v.getContext(), "Flight Mode Enabled",

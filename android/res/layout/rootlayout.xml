@@ -53,12 +53,13 @@
         android:layout_gravity="left|top"
         android:layout_alignParentTop="true"
         android:layout_alignParentRight="true"
-        android:background="@drawable/unchecked"
-        android:src="@drawable/plane"
+        android:background="@drawable/checked"
+        android:src="@drawable/whand"
         android:clickable="true"
         android:layout_alignParentEnd="false"
         android:focusable="false"
-        android:adjustViewBounds="true" />
+        android:adjustViewBounds="true"
+        android:baselineAlignBottom="false" />
 
     <LinearLayout
         android:orientation="horizontal"
