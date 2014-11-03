@@ -7,8 +7,13 @@ import com.badlogic.gdx.assets.AssetDescriptor;
 import com.badlogic.gdx.assets.AssetManager;
 
 import android.content.Intent;
+import android.net.Uri;
+import android.provider.Telephony;
 import android.util.Log;
 
+import com.badlogic.gdx.graphics.g3d.model.Node;
+import com.badlogic.gdx.graphics.g3d.model.NodePart;
+import com.badlogic.gdx.math.Matrix4;
 import com.schef.rss.android.db.ArsEntity;
 import com.badlogic.gdx.ApplicationListener;
 import com.badlogic.gdx.Gdx;
@@ -51,6 +56,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
 import java.io.Serializable;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -88,8 +94,8 @@ public class Ars3d implements ApplicationListener {
 
     public Array<ArticleInstance> cylinderSides = new Array<ArticleInstance>();
 
-    private Texture img4;
-    private Texture img5, img6, image;
+    private Texture image;
+//    private Texture img4, img5, img6;
     private TextureRegion icons;
 
     public Map<String, Texture> textureMap = new HashMap<String, Texture>();
@@ -117,6 +123,8 @@ public class Ars3d implements ApplicationListener {
     Float startPosition;
     Float startRotation;
 
+    public static volatile boolean textureHeadlines = true;
+
     public static volatile boolean tapable = true;
 
     public Ars3d(Context context, float position, float rotation) {
@@ -140,15 +148,15 @@ public class Ars3d implements ApplicationListener {
         gson = new GsonBuilder().create();
 
         manager.load(new AssetDescriptor(Gdx.files.internal("backg.jpg"), Texture.class));
-        manager.load(new AssetDescriptor(Gdx.files.internal("123750890.jpg"), Texture.class));
-        manager.load(new AssetDescriptor(Gdx.files.internal("brankic1979-icon-set.jpg"), Texture.class));
+//        manager.load(new AssetDescriptor(Gdx.files.internal("123750890.jpg"), Texture.class));
+//        manager.load(new AssetDescriptor(Gdx.files.internal("brankic1979-icon-set.jpg"), Texture.class));
         manager.load(new AssetDescriptor(Gdx.files.internal("earthmoon.jpg"), Texture.class));
         manager.update();
         manager.finishLoading();
 
-        img4 = manager.get("backg.jpg", Texture.class);
-        img5 = manager.get("123750890.jpg", Texture.class);
-        img6 = manager.get("brankic1979-icon-set.jpg", Texture.class);
+//        img4 = manager.get("backg.jpg", Texture.class);
+//        img5 = manager.get("123750890.jpg", Texture.class);
+//        img6 = manager.get("brankic1979-icon-set.jpg", Texture.class);
         image = manager.get("earthmoon.jpg", Texture.class);
 
         blendingAttribute = new BlendingAttribute(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA, 1.0f);
@@ -160,12 +168,12 @@ public class Ars3d implements ApplicationListener {
         ArsShaderProvider asp = new ArsShaderProvider(Gdx.files.internal("default.vertex3.glsl"),Gdx.files.internal("default.fragment3.glsl"));
         asp = new ArsShaderProvider();
 
-        modelBatch = new ModelBatch(new RenderContext(new DefaultTextureBinder(DefaultTextureBinder.ROUNDROBIN, 4)),asp,null);
+        modelBatch = new ModelBatch(new RenderContext(new DefaultTextureBinder(DefaultTextureBinder.ROUNDROBIN, 4, 4)),asp,null);
 
         ArsShaderProvider asp2 = new ArsShaderProvider(Gdx.files.internal("default.vertex.glsl"),Gdx.files.internal("default.fragment.glsl"),
                 Gdx.files.internal("default.vertex.glsl"),Gdx.files.internal("default.fragment2.glsl"));
 
-        modelBatch2 = new ModelBatch(new RenderContext(new DefaultTextureBinder(DefaultTextureBinder.ROUNDROBIN, 4)),
+        modelBatch2 = new ModelBatch(new RenderContext(new DefaultTextureBinder(DefaultTextureBinder.ROUNDROBIN, 4, 4)),
                 asp2,null);
 
 //        modelBatch2 = new ModelBatch(new RenderContext(new DefaultTextureBinder(DefaultTextureBinder.ROUNDROBIN, 4)),
@@ -191,6 +199,7 @@ public class Ars3d implements ApplicationListener {
 
         ModelBuilder mb = new ModelBuilder();
         Model model = null;
+        Model textModel = null;
         ArticleInstance instance2 = null;
 
         spriteBatch = new SpriteBatch(1);
@@ -200,16 +209,16 @@ public class Ars3d implements ApplicationListener {
             Gdx.app.error("fontShader", "compilation failed:\n" + fontShader.getLog());
         }
 
-        Texture texture = new Texture(Gdx.files.internal("txt3.png"), true); // true enables mipmaps
-        texture.setFilter(Texture.TextureFilter.MipMapLinearNearest, Texture.TextureFilter.Linear); // linear filtering in nearest mipmap image
+        Texture textTexture = new Texture(Gdx.files.internal("txt3.png"), true); // true enables mipmaps
+        textTexture.setFilter(Texture.TextureFilter.MipMapLinearNearest, Texture.TextureFilter.Linear); // linear filtering in nearest mipmap image
 
-        font = new BitmapFont(Gdx.files.internal("txt3.fnt"), new TextureRegion(texture), false);
+        font = new BitmapFont(Gdx.files.internal("txt3.fnt"), new TextureRegion(textTexture), false);
         pm = new Pixmap(Gdx.files.internal("txt3.png"));
         FileHandle fh = Gdx.files.internal("objs2.json");
 
 //        ShaderProgram sp = new ShaderProgram(Gdx.files.internal("default.vertex.glsl"),Gdx.files.internal("default.fragment2.glsl"));
 
-
+        boolean set = true;
 
         ImagePane[] ips = gson.fromJson(fh.reader(), ImagePane[].class);
         for (ImagePane ip : ips) {
@@ -219,36 +228,104 @@ public class Ars3d implements ApplicationListener {
                         VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates,
                         new Material(ColorAttribute.createDiffuse(Color.WHITE), /*TextureAttribute.createDiffuse(img5),*/ blendingAttribute2));
                 mpb.sphere(6f, 6f, 6f, 120, 120, ip.uFrom, ip.uTo, ip.vFrom, ip.vTo);
-                MeshBuilder meshBuilder = new MeshBuilder();
-                meshBuilder.begin(VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, GL20.GL_TRIANGLES);
-                meshBuilder.sphere2(6.015f, 6.015f, 6.015f, 200, 2, ip.uFrom, ip.uTo, ip.vTo - 4, ip.vTo, 0.9f, 1.0f);
-                Mesh mesh1 = meshBuilder.end();
-                mb.part("cylinderB", mesh1, GL20.GL_TRIANGLES, new Material(blendingAttribute3));
-                meshBuilder = new MeshBuilder();
-                meshBuilder.begin(VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, GL20.GL_TRIANGLES);
-                meshBuilder.sphere2(5.985f, 5.985f, 5.985f, 200, 2, ip.uFrom, ip.uTo, ip.vTo - 4, ip.vTo, 0.9f, 1.0f);
-                mesh1 = meshBuilder.end();
-                mb.part("cylinderC", mesh1, GL20.GL_TRIANGLES, new Material(blendingAttribute3));
+
+                if(textureHeadlines) {
+                    MeshBuilder meshBuilder = new MeshBuilder();
+                    meshBuilder.begin(VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, GL20.GL_TRIANGLES);
+                    meshBuilder.sphere2(6.015f, 6.015f, 6.015f, 200, 2, ip.uFrom, ip.uTo, ip.vTo, ip.vTo+2, 0.9f, 1.0f);
+                    Mesh mesh1 = meshBuilder.end();
+                    mb.part("cylinderB", mesh1, GL20.GL_TRIANGLES, new Material(blendingAttribute));
+                    meshBuilder = new MeshBuilder();
+                    meshBuilder.begin(VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, GL20.GL_TRIANGLES);
+                    meshBuilder.sphere2(5.985f, 5.985f, 5.985f, 200, 2, ip.uFrom, ip.uTo, ip.vTo, ip.vTo+2, 0.9f, 1.0f);
+                    mesh1 = meshBuilder.end();
+                    mb.part("cylinderC", mesh1, GL20.GL_TRIANGLES, new Material(blendingAttribute));
+                } else {
+                    GlyphUnit gu = textToTexture2("This is a test. Just a test no need to get worried or anything");
+                    float pixelToTextSize = 38f / (float) gu.totalWidth;
+                    float pixelToTextHeight = 4f / 143f;
+                    float degreeOffset = ip.uFrom;
+                    int count = 0;
+                    for (BitmapFont.Glyph glyph : gu.glyphs) {
+                        MeshBuilder meshBuilder = new MeshBuilder();
+                        float degreeToEndOffset = (glyph.width * pixelToTextSize) + degreeOffset;
+                        TextureRegion tr = new TextureRegion(textTexture, glyph.srcX, glyph.srcY, glyph.width, glyph.height);
+                        meshBuilder.begin(VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, GL20.GL_TRIANGLES);
+                        meshBuilder.sphere(6.115f, 6.115f, 6.115f, 1, 1, degreeOffset, degreeToEndOffset, ip.vTo + (Math.abs(glyph.height + glyph.yoffset) * pixelToTextHeight), ip.vTo + ((Math.abs(glyph.height + glyph.yoffset) + glyph.height) * pixelToTextHeight));
+                        Mesh mesh1 = meshBuilder.end();
+                        mb.part("text" + count, mesh1, GL20.GL_TRIANGLES, new Material(blendingAttribute, TextureAttribute.createDiffuse(tr)));
+                        degreeOffset = (glyph.xadvance * pixelToTextSize) + degreeOffset;
+                    }
+                }
+
                 model = mb.end();
+
+
+//                if(set) {
+//                    mb.begin();
+//                    Node nd = mb.node();
+//                    nd.id = "text";
+//                    GlyphUnit gu = textToTexture2("This is a test. Just a test no need to get worried or anything");
+//                    float pixelToTextSize = 360f / (float) gu.totalWidth;
+//                    float pixelToTextHeight = 4f / 143f;
+//                    float degreeOffset = ip.uFrom;
+//                    int count = 0;
+//                    for (BitmapFont.Glyph glyph : gu.glyphs) {
+//                        meshBuilder = new MeshBuilder();
+//                        float degreeToEndOffset = (glyph.width * pixelToTextSize) + degreeOffset;
+//                        TextureRegion tr = new TextureRegion(textTexture, glyph.srcX, glyph.srcY, glyph.width, glyph.height);
+//                        meshBuilder.begin(VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, GL20.GL_TRIANGLES);
+//                        meshBuilder.sphere(6.115f, 6.115f, 6.115f, 4, 2, degreeOffset, degreeToEndOffset, ip.vTo + (Math.abs(glyph.height + glyph.yoffset) * pixelToTextHeight), ip.vTo + ((Math.abs(glyph.height + glyph.yoffset) + glyph.height) * pixelToTextHeight));
+//                        mesh1 = meshBuilder.end();
+//                        mb.part("text" + count, mesh1, GL20.GL_TRIANGLES, new Material(blendingAttribute, TextureAttribute.createDiffuse(tr)));
+//                        degreeOffset = (glyph.xadvance * pixelToTextSize) + degreeOffset;
+//                    }
+//                    textModel = mb.end();
+//                    set = false;
+//                }
+
             } else {
                 mb.begin();
                 MeshPartBuilder mpb = mb.part("cylinderA" + count, GL20.GL_TRIANGLES,
                         VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates,
                         new Material(ColorAttribute.createDiffuse(Color.WHITE), /*TextureAttribute.createDiffuse(img4),*/ blendingAttribute2));
                 mpb.sphere(6f, 6f, 6f, 120, 120, ip.uFrom, ip.uTo, ip.vFrom, ip.vTo);
-                MeshBuilder meshBuilder = new MeshBuilder();
-                meshBuilder.begin(VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, GL20.GL_TRIANGLES);
-                meshBuilder.sphere2(6.015f, 6.015f, 6.015f, 200, 2, ip.uFrom, ip.uTo, ip.vTo - 4, ip.vTo, 0.9f, 1.0f);
-                Mesh mesh1 = meshBuilder.end();
-                mb.part("cylinderB", mesh1, GL20.GL_TRIANGLES, new Material(blendingAttribute3));
-                meshBuilder.begin(VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, GL20.GL_TRIANGLES);
-                meshBuilder.sphere2(5.985f, 5.985f, 5.985f, 200, 2, ip.uFrom, ip.uTo, ip.vTo - 4, ip.vTo, 0.9f, 1.0f);
-                mesh1 = meshBuilder.end();
-                mb.part("cylinderC", mesh1, GL20.GL_TRIANGLES, new Material(blendingAttribute3));
+                    if(textureHeadlines) {
+                        MeshBuilder meshBuilder = new MeshBuilder();
+                        meshBuilder.begin(VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, GL20.GL_TRIANGLES);
+                        meshBuilder.sphere2(6.015f, 6.015f, 6.015f, 200, 2, ip.uFrom, ip.uTo, ip.vTo, ip.vTo+2, 0.9f, 1.0f);
+                        Mesh mesh1 = meshBuilder.end();
+                        mb.part("cylinderB", mesh1, GL20.GL_TRIANGLES, new Material(blendingAttribute));
+                        meshBuilder.begin(VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, GL20.GL_TRIANGLES);
+                        meshBuilder.sphere2(5.985f, 5.985f, 5.985f, 200, 2, ip.uFrom, ip.uTo, ip.vTo, ip.vTo+2, 0.9f, 1.0f);
+                        mesh1 = meshBuilder.end();
+                        mb.part("cylinderC", mesh1, GL20.GL_TRIANGLES, new Material(blendingAttribute));
+                    } else {
+                        GlyphUnit gu = textToTexture2("This is a test. Just a test no need to get worried or anything");
+                        float pixelToTextSize = 38f / (float) gu.totalWidth;
+                        float pixelToTextHeight = 4f / 143f;
+                        float degreeOffset = ip.uFrom;
+                        int count = 0;
+                        for (BitmapFont.Glyph glyph : gu.glyphs) {
+                            MeshBuilder meshBuilder = new MeshBuilder();
+                            float degreeToEndOffset = (glyph.width * pixelToTextSize) + degreeOffset;
+                            TextureRegion tr = new TextureRegion(textTexture, glyph.srcX, glyph.srcY, glyph.width, glyph.height);
+                            meshBuilder.begin(VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, GL20.GL_TRIANGLES);
+                            meshBuilder.sphere(6.115f, 6.115f, 6.115f, 1, 1, degreeOffset, degreeToEndOffset, ip.vTo + (Math.abs(glyph.height + glyph.yoffset) * pixelToTextHeight), ip.vTo + ((Math.abs(glyph.height + glyph.yoffset) + glyph.height) * pixelToTextHeight));
+                            Mesh mesh1 = meshBuilder.end();
+                            mb.part("text" + count, mesh1, GL20.GL_TRIANGLES, new Material(blendingAttribute, TextureAttribute.createDiffuse(tr)));
+                            degreeOffset = (glyph.xadvance * pixelToTextSize) + degreeOffset;
+                        }
+                    }
+
                 model = mb.end();
             }
             instance2 = new ArticleInstance(model, ip.center, ip.dimensions, ip.radius, ip.bounds, ip.row, ip.col, 30l, count * 400);
-            instance2.startSpinner();
+//            instance2.textModel = new ModelInstance(textModel);
+            if(textureHeadlines) {
+                instance2.textureHeadline = textureHeadlines;
+                instance2.startSpinner();
+            }
             List<ArticleInstance> row = rows.get(ip.row);
             if (row == null) {
                 row = new ArrayList<ArticleInstance>();
@@ -378,6 +455,9 @@ public class Ars3d implements ApplicationListener {
     }
 
 
+
+
+
     public RotateGlobe rg = null;
 
     public void startRotateGlobe(float deg) {
@@ -426,24 +506,24 @@ public class Ars3d implements ApplicationListener {
     public static class RotateRow implements Runnable {
 
         public Ars3d ars3d;
-        public float rowId;
         public float degreesToRotate;
         public int rotateCycles;
         public long cycleTime;
+        public ArticleInstance ai;
 
-        public RotateRow(Ars3d ars3d, float rowId, float degreesToRotate, int rotateCycles, long cycleTime) {
+        public RotateRow(Ars3d ars3d, ArticleInstance ai, float degreesToRotate, int rotateCycles, long cycleTime) {
             this.ars3d = ars3d;
-            this.rowId = rowId;
             this.degreesToRotate = degreesToRotate;
             this.rotateCycles = rotateCycles;
             this.cycleTime = cycleTime;
+            this.ai = ai;
         }
 
         @Override
         public void run() {
             try {
                 tapable = false;
-                List<ArticleInstance> row = ars3d.rows.get(rowId);
+                List<ArticleInstance> row = ars3d.rows.get(ai.row);
                 if(row != null) {
                     for (int count = 0; count < rotateCycles; count++) {
                         try {
@@ -463,23 +543,27 @@ public class Ars3d implements ApplicationListener {
                             if (newRowId < 0) {
                                 newRowId = 8;
                             }
+                            ars3d.cols.get(ai2.col).remove(ai2);
                             ai2.col = newRowId;
+                            ars3d.cols.get(ai2.col).add(ai2);
                         } else {
                             float newRowId = ai2.col + 1;
                             if (newRowId > 8) {
                                 newRowId = 0;
                             }
+                            ars3d.cols.get(ai2.col).remove(ai2);
                             ai2.col = newRowId;
+                            ars3d.cols.get(ai2.col).add(ai2);
                         }
-                        cols.get(ai2.col).set((int)rowId,ai2);
-
+//                        cols.get(ai2.col).set((int)ai.row,ai2);
                     }
 
-                    resetColumns(rowId);
-                    resetBlending = true;
+//                    resetColumns(ai.row);
+
                 }
             } finally {
                 tapable = true;
+                resetBlending = true;
             }
         }
 
@@ -521,7 +605,6 @@ public class Ars3d implements ApplicationListener {
                 if(col0val == col1val) {
                     row0.get(i).col = col2val;
                     row1.get(i).col = col2val;
-
                 } else if(col0val == col2val) {
                     row0.get(i).col = col1val;
                     row2.get(i).col = col1val;
@@ -584,11 +667,13 @@ public class Ars3d implements ApplicationListener {
     int count = 0;
 
     public static boolean incenter = true;
-    public static boolean resetBlending = false;
-    public Float prevCol = new Float(6.0);
+    public static volatile boolean resetBlending = true;
+    public static boolean visibleBlendingUpdate = true;
+    public Float prevCol = 8f;
 //    boolean orientationChange = false;
 
     ModelBatch modelBatchInternal = null;
+    float visCol;
     @Override
     public void render() {
         Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
@@ -647,20 +732,25 @@ public class Ars3d implements ApplicationListener {
                     Material material = ai.materials.get(0);
                     if (ai.arsEntity.localImgPath != null) {
                         if (manager.isLoaded(Gdx.files.absolute(ai.arsEntity.localImgPath).path())) {
-                            if (ai.flipped) {
-
-                            } else {
-                                material.set(TextureAttribute.createDiffuse(manager.get(new AssetDescriptor<Texture>(Gdx.files.absolute(ai.arsEntity.localImgPath).path(), Texture.class))));
-                            }
-                            material = ai.materials.get(1);
-                            Material material2 = ai.materials.get(2);
-                            if (ai.arsEntity.title != null) {
-                                Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
-                                if (tmpTexture2 != null) {
-                                    material.set(TextureAttribute.createDiffuse(tmpTexture2));
-                                    material.id = "st";
-                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2));
-                                    material2.id = "st";
+                            material.set(TextureAttribute.createDiffuse(manager.get(new AssetDescriptor<Texture>(Gdx.files.absolute(ai.arsEntity.localImgPath).path(), Texture.class))));
+                            if(ai.textureHeadline) {
+                                material = ai.materials.get(1);
+                                Material material2 = ai.materials.get(2);
+                                if (ai.arsEntity.title != null) {
+                                    Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
+                                    if (tmpTexture2 != null /*&& ai.col == visCol*/) {
+                                        if(ai.col == visCol) {
+                                            material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
+                                            material.id = "st";
+                                            material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
+                                            material2.id = "st";
+                                        } else {
+                                            material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
+                                            material.id = "st";
+                                            material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
+                                            material2.id = "st";
+                                        }
+                                    }
                                 }
                             }
                             ai.update = false;
@@ -671,11 +761,18 @@ public class Ars3d implements ApplicationListener {
                         Material material2 = ai.materials.get(2);
                         if (ai.arsEntity.title != null) {
                             Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
-                            if (tmpTexture2 != null) {
-                                material.set(TextureAttribute.createDiffuse(tmpTexture2), blendingAttribute);
-                                material.id = "st";
-                                material2.set(TextureAttribute.createDiffuse(tmpTexture2));
-                                material2.id = "st";
+                            if (tmpTexture2 != null /*&& ai.col == visCol && ai.textureHeadline*/) {
+                                if(ai.col == visCol) {
+                                    material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
+                                    material.id = "st";
+                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
+                                    material2.id = "st";
+                                } else {
+                                    material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
+                                    material.id = "st";
+                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
+                                    material2.id = "st";
+                                }
                             }
                         }
                         ai.update = false;
@@ -692,15 +789,24 @@ public class Ars3d implements ApplicationListener {
                     if (ai.arsEntity.localImgPath != null) {
                         if (manager.isLoaded(Gdx.files.absolute(ai.arsEntity.localImgPath).path())) {
                             material.set(TextureAttribute.createDiffuse(manager.get(new AssetDescriptor<Texture>(Gdx.files.absolute(ai.arsEntity.localImgPath).path(), Texture.class))));
-                            material = ai.materials.get(1);
-                            Material material2 = ai.materials.get(2);
-                            if (ai.arsEntity.title != null) {
-                                Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
-                                if (tmpTexture2 != null) {
-                                    material.set(TextureAttribute.createDiffuse(tmpTexture2));
-                                    material.id = "st";
-                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2));
-                                    material2.id = "st";
+                            if(ai.textureHeadline) {
+                                material = ai.materials.get(1);
+                                Material material2 = ai.materials.get(2);
+                                if (ai.arsEntity.title != null) {
+                                    Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
+                                    if (tmpTexture2 != null /*&& ai.col == visCol*/) {
+                                        if(ai.col == visCol) {
+                                            material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
+                                            material.id = "st";
+                                            material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
+                                            material2.id = "st";
+                                        } else {
+                                            material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
+                                            material.id = "st";
+                                            material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
+                                            material2.id = "st";
+                                        }
+                                    }
                                 }
                             }
                             ai.update = false;
@@ -709,13 +815,20 @@ public class Ars3d implements ApplicationListener {
                         material.set(TextureAttribute.createDiffuse(manager.get(Gdx.files.internal("backg.jpg").path(), Texture.class)));
                         material = ai.materials.get(1);
                         Material material2 = ai.materials.get(2);
-                        if (ai.arsEntity.title != null) {
+                        if (ai.arsEntity.title != null /*&& ai.col == visCol && ai.textureHeadline*/) {
                             Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
                             if (tmpTexture2 != null) {
-                                material.set(TextureAttribute.createDiffuse(tmpTexture2));
-                                material.id = "st";
-                                material2.set(TextureAttribute.createDiffuse(tmpTexture2));
-                                material2.id = "st";
+                                if(ai.col == visCol) {
+                                    material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
+                                    material.id = "st";
+                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
+                                    material2.id = "st";
+                                } else {
+                                    material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
+                                    material.id = "st";
+                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
+                                    material2.id = "st";
+                                }
                             }
                         }
                         ai.update = false;
@@ -732,15 +845,24 @@ public class Ars3d implements ApplicationListener {
                     if (ai.arsEntity.localImgPath != null) {
                         if (manager.isLoaded(Gdx.files.absolute(ai.arsEntity.localImgPath).path())) {
                             material.set(TextureAttribute.createDiffuse(manager.get(new AssetDescriptor<Texture>(Gdx.files.absolute(ai.arsEntity.localImgPath).path(), Texture.class))));
-                            material = ai.materials.get(1);
-                            Material material2 = ai.materials.get(2);
-                            if (ai.arsEntity.title != null) {
-                                Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
-                                if (tmpTexture2 != null) {
-                                    material.set(TextureAttribute.createDiffuse(tmpTexture2));
-                                    material.id = "st";
-                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2));
-                                    material2.id = "st";
+                            if(ai.textureHeadline) {
+                                material = ai.materials.get(1);
+                                Material material2 = ai.materials.get(2);
+                                if (ai.arsEntity.title != null /*&& ai.col == visCol*/) {
+                                    Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
+                                    if (tmpTexture2 != null ) {
+                                        if(ai.col == visCol) {
+                                            material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
+                                            material.id = "st";
+                                            material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
+                                            material2.id = "st";
+                                        } else {
+                                            material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
+                                            material.id = "st";
+                                            material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
+                                            material2.id = "st";
+                                        }
+                                    }
                                 }
                             }
                             ai.update = false;
@@ -749,13 +871,20 @@ public class Ars3d implements ApplicationListener {
                         material.set(TextureAttribute.createDiffuse(manager.get(Gdx.files.internal("backg.jpg").path(), Texture.class)));
                         material = ai.materials.get(1);
                         Material material2 = ai.materials.get(2);
-                        if (ai.arsEntity.title != null) {
+                        if (ai.arsEntity.title != null /*&& ai.col == visCol && ai.textureHeadline*/) {
                             Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
                             if (tmpTexture2 != null) {
-                                material.set(TextureAttribute.createDiffuse(tmpTexture2));
-                                material.id = "st";
-                                material2.set(TextureAttribute.createDiffuse(tmpTexture2));
-                                material2.id = "st";
+                                if(ai.col == visCol) {
+                                    material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
+                                    material.id = "st";
+                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
+                                    material2.id = "st";
+                                } else {
+                                    material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
+                                    material.id = "st";
+                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
+                                    material2.id = "st";
+                                }
                             }
                         }
                         ai.update = false;
@@ -769,10 +898,12 @@ public class Ars3d implements ApplicationListener {
             if(resetBlending) {
                 for(ArticleInstance ai3 : cylinderSides) {
                     ai3.materials.get(0).set(blendingAttribute2);
-                    ai3.materials.get(1).set(blendingAttribute4);
-                    ai3.materials.get(2).set(blendingAttribute4);
+                    if(ai3.textureHeadline) {
+                        ai3.materials.get(1).set(blendingAttribute4);
+                        ai3.materials.get(2).set(blendingAttribute4);
+                    }
                 }
-                resetBlending = false;
+//                resetBlending = false;
             }
 
 
@@ -786,27 +917,114 @@ public class Ars3d implements ApplicationListener {
             }
 
             if (closest != null && tapable) {
-                float visCol = closest.col;
-                List<ArticleInstance> rowEntries = cols.get(visCol);
-                for (ArticleInstance ais : rowEntries) {
-                    ais.materials.get(0).set(blendingAttribute);
-                    ais.materials.get(1).set(blendingAttribute);
-                    ais.materials.get(2).set(blendingAttribute);
+                visCol = closest.col;
+                if(prevCol.compareTo(visCol) != 0 || resetBlending) {
+                    List<ArticleInstance> rowEntries = cols.get(visCol);
+                    for (ArticleInstance ais : rowEntries) {
+                        ais.materials.get(0).set(blendingAttribute);
+                        if (ais.textureHeadline) {
+                            ais.materials.get(1).set(blendingAttribute);
+                            ais.materials.get(2).set(blendingAttribute);
+//                            Material material = ais.materials.get(1);
+//                            Material material2 = ais.materials.get(2);
+//                            if (ais.arsEntity != null && ais.arsEntity.title != null) {
+//                                Texture tmpTexture2 = textureMap2.get(ais.arsEntity.title);
+//                                if (tmpTexture2 != null) {
+//                                    material.set(TextureAttribute.createDiffuse(tmpTexture2));
+//                                    material.id = "st";
+//                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2));
+//                                    material2.id = "st";
+//                                } else {
+//                                    tmpTexture2 = new Texture(textToTexture(ais.arsEntity.getTitle()));
+//                                    textureMap2.put(ais.arsEntity.getTitle(), tmpTexture2);
+//                                    material.set(TextureAttribute.createDiffuse(tmpTexture2));
+//                                    material.id = "st";
+//                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2));
+//                                    material2.id = "st";
+//                                }
+//                            }
+                        }
+                    }
+                    resetBlending = false;
                 }
+//                float colAfter = visCol + 1 > 8 ? 0 : visCol + 1;
+//                float colBefore = visCol - 1 < 0 ? 8 : visCol - 1;
+//                List<ArticleInstance> rowEntries2 = cols.get(colAfter);
+//                for (ArticleInstance ais : rowEntries2) {
+//                    if(ais.arsEntity != null && ais.arsEntity.title != null) {
+//                        Texture tmpTexture2 = textureMap2.get(ais.arsEntity.title);
+//                        if (tmpTexture2 != null) {
+//                            tmpTexture2 = new Texture(textToTexture(ais.arsEntity.getTitle()));
+//                            textureMap2.put(ais.arsEntity.getTitle(), tmpTexture2);
+//                        }
+//                    }
+//                }
+//                List<ArticleInstance> rowEntries3 = cols.get(colBefore);
+//                for (ArticleInstance ais : rowEntries3) {
+//                    if(ais.arsEntity != null && ais.arsEntity.title != null) {
+//                        Texture tmpTexture2 = textureMap2.get(ais.arsEntity.title);
+//                        if (tmpTexture2 != null) {
+//                            tmpTexture2 = new Texture(textToTexture(ais.arsEntity.getTitle()));
+//                            textureMap2.put(ais.arsEntity.getTitle(), tmpTexture2);
+//                        }
+//                    }
+//                }
                 if (prevCol.compareTo(visCol) != 0) {
+                    List<ArticleInstance> rowEntries = cols.get(visCol);
                     rowEntries = cols.get(prevCol);
                     for (ArticleInstance ais : rowEntries) {
                         ais.materials.get(0).set(blendingAttribute2);
-                        ais.materials.get(1).set(blendingAttribute4);
-                        ais.materials.get(2).set(blendingAttribute4);
+                        if(ais.textureHeadline) {
+                            ais.materials.get(1).set(blendingAttribute4);
+                            ais.materials.get(2).set(blendingAttribute4);
+                        }
+//                        TextureAttribute ta = (TextureAttribute) ais.materials.get(1).get(TextureAttribute.Diffuse);
+//                        if(ta != null && ta.textureDescription != null && ta.textureDescription.texture != null) {
+//                            ta.textureDescription.texture.dispose();
+//                            ais.materials.get(1).remove(TextureAttribute.Diffuse);
+//                        }
+//                        ta = (TextureAttribute) ais.materials.get(2).get(TextureAttribute.Diffuse);
+//                        if(ta != null && ta.textureDescription != null && ta.textureDescription.texture != null) {
+//                            ta.textureDescription.texture.dispose();
+//                            ais.materials.get(2).remove(TextureAttribute.Diffuse);
+//                        }
+//                        if(ais.arsEntity != null) {
+//                            textureMap2.remove(ais.arsEntity.getTitle());
+//                        }
                     }
                     prevCol = visCol;
+                    resetBlending = false;
                 }
             }
 
 
             for (Integer in : tm.descendingMap().values()) {
-                modelBatchInternal.render(cylinderSides.get(in));
+                ArticleInstance ai = cylinderSides.get(in);
+//                if(ai.model.nodes.size > 1 && ai.model.nodes.get(1).id.equalsIgnoreCase("text")) {
+//                    Node node = ai.model.nodes.get(1);
+//                    if (node != null) {
+//                        node.localTransform.rotate(0.0f, 600.0f, 0.0f, 1);
+//                        node.calculateWorldTransform();
+//                        node.parts.get(0).meshPart.mesh.
+//                        node.translation.set(0,0,0);
+//                        node.scale.set(1,1,1);
+//                        node.rotation.idt();
+//                        node.localTransform.rotate(0.0f, 600.0f, 0.0f, 1);
+//                        node.translation.rotate(1f, 0.0f, 600.0f, 0.0f);
+//                        node.rotation.idt();
+//                        ai.calculateTransforms();
+//                        node.localTransform.rotate()
+
+//                    node.rotation
+//                    node.parts.transform.rotate(0.0f, 600.0f, 0.0f, degreesToRotate);
+//                    node.center.rotate(new Vector3(0.0f, 600.0f, 0.0f), degreesToRotate);
+//                    node.dimensions.rotate(new Vector3(0.0f, 600.0f, 0.0f), degreesToRotate);
+//                    }
+//                }
+                modelBatchInternal.render(ai);
+                if(ai.textModel != null) {
+                    modelBatchInternal.render(ai.textModel);
+                }
             }
 
             if (arrow != null) {
@@ -823,10 +1041,20 @@ public class Ars3d implements ApplicationListener {
     public void dispose() {
         modelBatch.dispose();
         modelBatch2.dispose();
-        for (ModelInstance mi : cylinderSides) {
-            mi.model.dispose();
+        spriteBatch.dispose();
+        for (ArticleInstance ai : cylinderSides) {
+            ai.model.dispose();
+            if(ai.textModel != null) {
+                ai.textModel.model.dispose();
+            }
         }
+        for(Texture text : textureMap2.values()) {
+            text.dispose();
+        }
+        manager.dispose();
     }
+
+
 
     @Override
     public void resize(int width, int height) {
@@ -834,6 +1062,22 @@ public class Ars3d implements ApplicationListener {
 
     @Override
     public void pause() {
+//        for(Texture text : textureMap2.values()) {
+//            text.dispose();
+//        }
+//        textureMap2.clear();
+//        modelBatch.dispose();
+//        modelBatch2.dispose();
+//        spriteBatch.dispose();
+//        for (ArticleInstance ai : cylinderSides) {
+//            ai.model.dispose();
+//            if(ai.textModel != null) {
+//                ai.textModel.model.dispose();
+//            }
+//        }
+//        manager.dispose();
+
+
     }
 
     @Override
@@ -874,10 +1118,17 @@ public class Ars3d implements ApplicationListener {
             if(tapable) {
                 int index = getObject((int) Math.round(x), (int) Math.round(y));
                 if (index > 0) {
-                    Intent intent = new Intent(context, WebViewActivity.class);
                     ArticleInstance ai = cylinderSides.get(index);
                     if (ai != null && ai.arsEntity != null && ai.arsEntity.getLink() != null && !ai.arsEntity.getLink().isEmpty()) {
+
+//                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(ai.arsEntity.getLink()));
+//                        if (ars3d.parent != null) {
+//                            ars3d.parent.startActivity(intent);
+//                        }
+                        Intent intent = new Intent(context, WebViewActivity.class);
                         intent.putExtra(WebViewActivity.URL, cylinderSides.get(index).arsEntity.getLink());
+//                        Intent intent = new Intent(Intent.ACTION_VIEW);
+//                        intent.setData(Uri.parse(ai.arsEntity.getLink()));
                         if (ars3d.parent != null) {
                             ars3d.parent.startActivity(intent);
                         }
@@ -945,7 +1196,7 @@ public class Ars3d implements ApplicationListener {
                         }
                     }
 
-                    final RotateRow rr = new RotateRow(ars3d, aeStart.row, deg, 100, 5l);
+                    final RotateRow rr = new RotateRow(ars3d, aeStart, deg, 100, 5l);
                     new Thread(rr).start();
                 }
                 firstPan = true;
@@ -984,7 +1235,13 @@ public class Ars3d implements ApplicationListener {
 
                 Intent intent = new Intent(context, WebViewActivity.class);
                 intent.putExtra(WebViewActivity.URL, cylinderSides.get(selected).arsEntity.getLink());
-                ars3d.parent.startActivity(intent);
+//                ars3d.parent.startActivity(intent);
+//                Intent intent = new Intent(Intent.ACTION_VIEW);
+//                intent.setData(Uri.parse(cylinderSides.get(selected).arsEntity.getLink()));
+
+                if (ars3d.parent != null) {
+                    ars3d.parent.startActivity(intent);
+                }
 
             }
         }
@@ -1083,7 +1340,14 @@ public class Ars3d implements ApplicationListener {
                     ArticleInstance ai = row.get(i);
                     if (ai.arsEntity == null || ai.arsEntity.getLink() == null || ai.arsEntity.getLink().equalsIgnoreCase(tmpEntity.getLink())) {
                         ai.arsEntity = tmpEntity;
-                        textureMap2.put(ai.arsEntity.getTitle(), new Texture(textToTexture(ai.arsEntity.getTitle())));
+//                        float colAfter = visCol + 1 > 8 ? 0 : visCol + 1;
+//                        float colBefore = visCol - 1 < 0 ? 8 : visCol - 1;
+//                        if(ai.col == colBefore || ai.col == visCol || ai.col == colAfter ) {
+//                            textureMap2.put(ai.arsEntity.getTitle(), new Texture(textToTexture(ai.arsEntity.getTitle())));
+//                        }
+                        if(textureHeadlines) {
+                            textureMap2.put(ai.arsEntity.getTitle(), new Texture(textToTexture(ai.arsEntity.getTitle())));
+                        }
                         ai.update = true;
                         if (ai.arsEntity.getLocalImgPath() != null && !ai.arsEntity.getLocalImgPath().isEmpty()) {
                             AssetDescriptor ad = new AssetDescriptor(Gdx.files.absolute(ai.arsEntity.localImgPath), Texture.class);
@@ -1103,7 +1367,14 @@ public class Ars3d implements ApplicationListener {
                     ArticleInstance ai = row.get(i);
                     if (ai.arsEntity == null || ai.arsEntity.getLink() == null || ai.arsEntity.getLink().equalsIgnoreCase(tmpEntity.getLink())) {
                         ai.arsEntity = tmpEntity;
-                        textureMap2.put(ai.arsEntity.getTitle(), new Texture(textToTexture(ai.arsEntity.getTitle())));
+//                        float colAfter = visCol + 1 > 8 ? 0 : visCol + 1;
+//                        float colBefore = visCol - 1 < 0 ? 8 : visCol - 1;
+//                        if(ai.col == colBefore || ai.col == visCol || ai.col == colAfter ) {
+//                            textureMap2.put(ai.arsEntity.getTitle(), new Texture(textToTexture(ai.arsEntity.getTitle())));
+//                        }
+                        if(textureHeadlines) {
+                            textureMap2.put(ai.arsEntity.getTitle(), new Texture(textToTexture(ai.arsEntity.getTitle())));
+                        }
                         ai.update = true;
                         if (ai.arsEntity.getLocalImgPath() != null && !ai.arsEntity.getLocalImgPath().isEmpty()) {
                             AssetDescriptor ad = new AssetDescriptor(Gdx.files.absolute(ai.arsEntity.localImgPath), Texture.class);
@@ -1123,7 +1394,14 @@ public class Ars3d implements ApplicationListener {
                     ArticleInstance ai = row.get(i);
                     if (ai.arsEntity == null || ai.arsEntity.getLink() == null || ai.arsEntity.getLink().equalsIgnoreCase(tmpEntity.getLink())) {
                         ai.arsEntity = tmpEntity;
-                        textureMap2.put(ai.arsEntity.getTitle(), new Texture(textToTexture(ai.arsEntity.getTitle())));
+//                        float colAfter = visCol + 1 > 8 ? 0 : visCol + 1;
+//                        float colBefore = visCol - 1 < 0 ? 8 : visCol - 1;
+//                        if(ai.col == colBefore || ai.col == visCol || ai.col == colAfter ) {
+//                            textureMap2.put(ai.arsEntity.getTitle(), new Texture(textToTexture(ai.arsEntity.getTitle())));
+//                        }
+                        if(textureHeadlines) {
+                            textureMap2.put(ai.arsEntity.getTitle(), new Texture(textToTexture(ai.arsEntity.getTitle())));
+                        }
                         ai.update = true;
                         if (ai.arsEntity.getLocalImgPath() != null && !ai.arsEntity.getLocalImgPath().isEmpty()) {
                             AssetDescriptor ad = new AssetDescriptor(Gdx.files.absolute(ai.arsEntity.localImgPath), Texture.class);
@@ -1160,6 +1438,9 @@ public class Ars3d implements ApplicationListener {
         public long initialPause;
 
         public boolean flipped = false;
+
+        public ModelInstance textModel;
+        public boolean textureHeadline = false;
 
         public ArticleInstance(Model model, Vector3 center, Vector3 dimensions, float radius, BoundingBox bounds,
                                float row, float col, long textSleepTime, long initialPause) {
@@ -1216,6 +1497,7 @@ public class Ars3d implements ApplicationListener {
         public long sleepTime;
         public long initialPause;
         public boolean running = true;
+        public boolean modelSpin = false;
 
         public TextSpinner(ArticleInstance ai, long sleepTime, long initialPause) {
             this.ai = ai;
@@ -1235,50 +1517,61 @@ public class Ars3d implements ApplicationListener {
                 e.printStackTrace();
             }
             while (running) {
-                MeshPart meshPart = ai.nodes.get(0).parts.get(1).meshPart;
-                Mesh mesh = meshPart.mesh;
-                MeshPart meshPartBack = ai.nodes.get(0).parts.get(2).meshPart;
-                Mesh meshBack = meshPartBack.mesh;
 
-                int cap2 = mesh.getVerticesBuffer().capacity();
-                mesh.getVerticesBuffer().limit(cap2);
-                meshBack.getVerticesBuffer().limit(cap2);
-
-                synchronized (all2) {
-                    mesh.getVertices(0, cap2, all2);
-                    meshBack.getVertices(0, cap2, all2Back);
-
-                    if(incenter) {
-                        for (int i = 6; i < cap2; i += 8) {
-                            float tmp = all2[i] - .005f;
-                            if (tmp < 0.0) {
-                                tmp = tmp + 1.0f; //tmp = 0.0f;//tmp + 1.0f;
-                            }
-                            all2[i] = tmp;
-
-                            float tmp2 = all2Back[i] - .005f;
-                            if (tmp2 < 0.0) {
-                                tmp2 = tmp2 + 1.0f; //tmp = 0.0f;//tmp + 1.0f;
-                            }
-                            all2Back[i] = tmp2;
-                        }
-                    } else {
-                        for (int i = 6; i < cap2; i += 8) {
-                            float tmp = all2[i] + .005f;
-                            if (tmp > 1.0) {
-                                tmp = tmp - 1.0f; //tmp = 0.0f;//tmp + 1.0f;
-                            }
-                            all2[i] = tmp;
-
-                            float tmp2 = all2Back[i] + .005f;
-                            if (tmp2 > 1.0) {
-                                tmp2 = tmp2 - 1.0f; //tmp = 0.0f;//tmp + 1.0f;
-                            }
-                            all2Back[i] = tmp2;
+                if(modelSpin) {
+                    if (ai.textModel != null) {
+                        if (incenter) {
+                            ai.textModel.transform.rotate(0.0f, 600.0f, 0.0f, 0.5f);
+                        } else {
+                            ai.textModel.transform.rotate(0.0f, 600.0f, 0.0f, 0.5f);
                         }
                     }
-                    mesh.setVertices(all2, 0, cap2);
-                    meshBack.setVertices(all2Back, 0, cap2);
+                } else {
+                    MeshPart meshPart = ai.nodes.get(0).parts.get(1).meshPart;
+                    Mesh mesh = meshPart.mesh;
+                    MeshPart meshPartBack = ai.nodes.get(0).parts.get(2).meshPart;
+                    Mesh meshBack = meshPartBack.mesh;
+
+                    int cap2 = mesh.getVerticesBuffer().capacity();
+                    mesh.getVerticesBuffer().limit(cap2);
+                    meshBack.getVerticesBuffer().limit(cap2);
+
+                    synchronized (all2) {
+                        mesh.getVertices(0, cap2, all2);
+                        meshBack.getVertices(0, cap2, all2Back);
+
+                        if (incenter) {
+                            for (int i = 6; i < cap2; i += 8) {
+                                float tmp = all2[i] - .005f;
+                                if (tmp < 0.0) {
+                                    tmp = tmp + 1.0f; //tmp = 0.0f;//tmp + 1.0f;
+                                }
+                                all2[i] = tmp;
+
+                                float tmp2 = all2Back[i] - .005f;
+                                if (tmp2 < 0.0) {
+                                    tmp2 = tmp2 + 1.0f; //tmp = 0.0f;//tmp + 1.0f;
+                                }
+                                all2Back[i] = tmp2;
+                            }
+                        } else {
+                            for (int i = 6; i < cap2; i += 8) {
+                                float tmp = all2[i] + .005f;
+                                if (tmp > 1.0) {
+                                    tmp = tmp - 1.0f; //tmp = 0.0f;//tmp + 1.0f;
+                                }
+                                all2[i] = tmp;
+
+                                float tmp2 = all2Back[i] + .005f;
+                                if (tmp2 > 1.0) {
+                                    tmp2 = tmp2 - 1.0f; //tmp = 0.0f;//tmp + 1.0f;
+                                }
+                                all2Back[i] = tmp2;
+                            }
+                        }
+                        mesh.setVertices(all2, 0, cap2);
+                        meshBack.setVertices(all2Back, 0, cap2);
+                    }
                 }
                 try {
                     Thread.sleep(sleepTime);
@@ -1403,6 +1696,7 @@ public class Ars3d implements ApplicationListener {
     }
 
     private Pixmap textToTexture(String text) {
+//        text = "Hi";
         BitmapFont.TextBounds tb = font.getBounds(text);
 
         int totalWidth = 52;
@@ -1422,14 +1716,14 @@ public class Ars3d implements ApplicationListener {
             BitmapFont.Glyph glyph = font.getData().getGlyph(ch);
             if (ch != 32 && glyph != null) {
                 pm2.drawPixmap(pm, glyph.srcX, glyph.srcY, glyph.width, glyph.height, currentWidth, Math.abs(glyph.height + glyph.yoffset), glyph.width, glyph.height);
-                currentWidth += (glyph.width);
+                currentWidth += (glyph.xadvance);
             } else {
                 currentWidth += 26;
             }
 
-            if (ch == 'f') {
-                currentWidth -= 15;
-            }
+//            if (ch == 'f') {
+//                currentWidth -= 15;
+//            }
         }
 
         if (pm2.getWidth() > 4048) {
@@ -1438,6 +1732,34 @@ public class Ars3d implements ApplicationListener {
             pm2 = tmp;
         }
         return pm2;
+    }
+
+    public static class GlyphUnit {
+        public ArrayDeque<BitmapFont.Glyph> glyphs = new ArrayDeque<BitmapFont.Glyph>();
+        public int totalWidth = 0;
+
+    }
+
+
+    private GlyphUnit textToTexture2(String text) {
+//        text = "Hi";
+        BitmapFont.TextBounds tb = font.getBounds(text);
+
+        GlyphUnit glyphUnit = new GlyphUnit();
+
+        int totalWidth = 0;
+            for (char ch : text.toCharArray()) {
+                BitmapFont.Glyph glyph = font.getData().getGlyph(ch);
+                glyphUnit.glyphs.addFirst(glyph);
+                if (ch != 32 && glyph != null) {
+                    totalWidth += (glyph.width);
+                } else {
+                    totalWidth += 26;
+                }
+        }
+
+        glyphUnit.totalWidth = totalWidth;
+        return glyphUnit;
     }
 
     public Boolean getImageUpdates() {

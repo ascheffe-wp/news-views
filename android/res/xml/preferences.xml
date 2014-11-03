@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android" >
+    
+    <!--<PreferenceCategory-->
+            <!--android:title="@string/inline_preferences" >-->
+            <!---->
+        <!--<CheckBoxPreference android:width="373dp"-->
+                <!--android:key="checkbox_preference"-->
+                <!--android:title="@string/title_checkbox_preference"-->
+                <!--android:summary="@string/summary_checkbox_preference" />-->
+
+    <!--</PreferenceCategory>-->
+                
+    <PreferenceCategory
+            android:title="Content Preferences">
+
+        <ListPreference
+                android:key="content_preference"
+                android:title="Select Content Source"
+                android:summary="Select from where to get the your content from"
+                android:entries="@array/entries_list_preference"
+                android:entryValues="@array/entryvalues_list_preference"
+                android:dialogTitle="Choose Where to get your content from"
+                android:defaultValue="vice"/>
+
+    </PreferenceCategory>
+
+    <!--<PreferenceCategory-->
+            <!--android:title="@string/launch_preferences">-->
+
+
+        <!--<PreferenceScreen-->
+                <!--android:key="screen_preference"-->
+                <!--android:title="@string/title_screen_preference"-->
+                <!--android:summary="@string/summary_screen_preference">-->
+            <!---->
+
+            <!--<CheckBoxPreference-->
+                    <!--android:key="next_screen_checkbox_preference"-->
+                    <!--android:title="@string/title_next_screen_toggle_preference"-->
+                    <!--android:summary="@string/summary_next_screen_toggle_preference" />-->
+                <!---->
+        <!--</PreferenceScreen>-->
+
+        <!--<PreferenceScreen-->
+                <!--android:title="@string/title_intent_preference"-->
+                <!--android:summary="@string/summary_intent_preference">-->
+
+            <!--<intent android:action="android.intent.action.VIEW"-->
+                    <!--android:data="http://developer.android.com/" />-->
+
+        <!--</PreferenceScreen>-->
+
+    <!--</PreferenceCategory>-->
+    <!---->
+    <!--<PreferenceCategory-->
+            <!--android:title="@string/preference_attributes">-->
+    <!---->
+        <!--<CheckBoxPreference-->
+                <!--android:key="parent_checkbox_preference"-->
+                <!--android:title="@string/title_parent_preference"-->
+                <!--android:summary="@string/summary_parent_preference" />-->
+
+        <!--<CheckBoxPreference-->
+                <!--android:key="child_checkbox_preference"-->
+                <!--android:dependency="parent_checkbox_preference"-->
+                <!--android:layout="?android:attr/preferenceLayoutChild"-->
+                <!--android:title="@string/title_child_preference"-->
+                <!--android:summary="@string/summary_child_preference" />-->
+            <!---->
+    <!--</PreferenceCategory>-->
+    
+</PreferenceScreen>

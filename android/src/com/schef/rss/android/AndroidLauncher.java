@@ -34,6 +34,12 @@ public class AndroidLauncher extends AndroidApplication {
 	protected void onCreate (Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 
+        // Display the fragment as the main content.
+//        getFragmentManager().beginTransaction()
+//                .replace(android.R.id.content, new UserSettingsFragment())
+//                .commit();
+
+
         setContentView(R.layout.rootlayout);
 
         AndroidApplicationConfiguration cfg = new AndroidApplicationConfiguration();
@@ -50,33 +56,33 @@ public class AndroidLauncher extends AndroidApplication {
         ImageView iv = (ImageView)findViewById(R.id.handImage);
         iv.setOnClickListener(new HandClickListener(ars3d));
 
-        ImageView upArrow = (ImageView) findViewById(R.id.upTurnImage);
-        upArrow.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                    ars3d.startRotateGlobe(1.01f);
-                } else if (event.getAction() == MotionEvent.ACTION_UP) {
-                    ars3d.stopRotateGlobe();
-                }
+//        ImageView upArrow = (ImageView) findViewById(R.id.upTurnImage);
+//        upArrow.setOnTouchListener(new View.OnTouchListener() {
+//            @Override
+//            public boolean onTouch(View v, MotionEvent event) {
+//                if (event.getAction() == MotionEvent.ACTION_DOWN) {
+//                    ars3d.startRotateGlobe(1.01f);
+//                } else if (event.getAction() == MotionEvent.ACTION_UP) {
+//                    ars3d.stopRotateGlobe();
+//                }
+//
+//                return true;
+//            }
+//        });
 
-                return true;
-            }
-        });
-
-        ImageView downArrow = (ImageView) findViewById(R.id.downTurnImage);
-        downArrow.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                if(event.getAction() == MotionEvent.ACTION_DOWN) {
-                    ars3d.startRotateGlobe(-1.01f);
-                } else if (event.getAction() == MotionEvent.ACTION_UP) {
-                    ars3d.stopRotateGlobe();
-                }
-
-                return true;
-            }
-        });
+//        ImageView downArrow = (ImageView) findViewById(R.id.downTurnImage);
+//        downArrow.setOnTouchListener(new View.OnTouchListener() {
+//            @Override
+//            public boolean onTouch(View v, MotionEvent event) {
+//                if(event.getAction() == MotionEvent.ACTION_DOWN) {
+//                    ars3d.startRotateGlobe(-1.01f);
+//                } else if (event.getAction() == MotionEvent.ACTION_UP) {
+//                    ars3d.stopRotateGlobe();
+//                }
+//
+//                return true;
+//            }
+//        });
 
 
         ArrayList<String> menuItems = new ArrayList<String>();

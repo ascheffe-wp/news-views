@@ -6,6 +6,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.Environment;
@@ -14,6 +16,8 @@ import android.os.IBinder;
 import android.os.Message;
 import android.util.Log;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.schef.rss.android.db.ArsEntity;
 import com.schef.rss.android.db.CacheDb;
 
@@ -25,6 +29,8 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -34,7 +40,9 @@ import java.net.URLConnection;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Locale;
 import java.util.TreeSet;
@@ -53,6 +61,8 @@ public class ArsDataFetcherService extends Service {
 
     private static String FILES_ROOT = "localfiles";
     public static String arsRSSFeedUrl = "http://feeds.arstechnica.com/arstechnica/index?format=xml";
+    public static String viceFeedUrl = "http://www.vice.com/news/page/1";
+    public static String viceFeedUrl2 = "http://www.vice.com/news/page/2";
 
     protected static final String TAG = ArsDataFetcherService.class.getSimpleName();
 
@@ -113,6 +123,249 @@ public class ArsDataFetcherService extends Service {
 
 
     public void parse() {
+        try {
+            ConnectivityManager cm = (ConnectivityManager) getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+            NetworkInfo ni = cm.getActiveNetworkInfo();
+            Gson gson = new Gson();
+            if(ni != null && ni.isConnected()) {
+                //
+                try {
+                    URL url = new URL("https://s3.amazonaws.com/arsappdir/config.json");
+                    URLConnection connection = url.openConnection();
+                    HttpURLConnection httpConnection = (HttpURLConnection) connection;
+
+                    if (httpConnection.getResponseCode() == HttpURLConnection.HTTP_OK) {
+                        String configJson = IOUtils.toString(httpConnection.getInputStream());
+                        Log.w("Config",configJson);
+                        ConfigPojo cp = gson.fromJson(configJson,ConfigPojo.class);
+
+                        FileOutputStream fos = openFileOutput("config.json", Context.MODE_PRIVATE);
+                        IOUtils.write(configJson,fos);
+                        IOUtils.closeQuietly(fos);
+
+                        NewApplication.getInstance().setConfigPojo(cp);
+                        httpConnection.disconnect();
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG,"Error Getting config",e);
+                }
+
+                // Connect to the web site
+                cleanStorage(getDb(getApplicationContext()));
+
+                URL url = new URL(NewApplication.getInstance().getConfigPojo().viceUrl1);
+                URLConnection con = url.openConnection();
+                InputStream in = con.getInputStream();
+                String encoding = con.getContentEncoding();
+                encoding = encoding == null ? "UTF-8" : encoding;
+                String body = IOUtils.toString(in, encoding);
+
+                URL url2 = new URL(NewApplication.getInstance().getConfigPojo().viceUrl2);
+                URLConnection con2 = url2.openConnection();
+                InputStream in2 = con2.getInputStream();
+                String encoding2 = con2.getContentEncoding();
+                encoding2 = encoding2 == null ? "UTF-8" : encoding2;
+                String body2 = IOUtils.toString(in2, encoding2);
+
+
+                body = body.replace("<![CDATA[", "").replace("]]>", "");
+
+                body2 = body2.replace("<![CDATA[", "").replace("]]>", "");
+
+                Document document = Jsoup.parse(body);
+                Document document2 = Jsoup.parse(body2);
+                Elements items = document.select(NewApplication.getInstance().getConfigPojo().articleCssPage1);
+                Elements items2 = document2.select(NewApplication.getInstance().getConfigPojo().articleCssPage2);
+
+                items.addAll(items2);
+                List<ArsEntity> ents = new ArrayList<ArsEntity>();
+
+                Long duh = System.currentTimeMillis();
+
+                if (!items.isEmpty()) {
+                    for (int i = 0; i < items.size(); i++) {
+                        try {
+                            ArsEntity ae = new ArsEntity();
+
+                            Element el = items.get(i);
+
+                            Elements titleAnchor = el.select(NewApplication.getInstance().getConfigPojo().titleCss);
+                            if(!titleAnchor.isEmpty() && titleAnchor.first() != null && titleAnchor.first().hasText()) {
+                                ae.setTitle(titleAnchor.first().text());
+                            }
+
+                            Elements linkAnchor = el.select(NewApplication.getInstance().getConfigPojo().linkCss); //.get(0);
+                            if(linkAnchor != null && !linkAnchor.isEmpty() && linkAnchor.first().hasAttr(NewApplication.getInstance().getConfigPojo().linkCssAttrName)) {
+                                String linkPre = linkAnchor.first().attr(NewApplication.getInstance().getConfigPojo().linkCssAttrName);
+                                if(NewApplication.getInstance().getConfigPojo().linkRegexFind != null && !NewApplication.getInstance().getConfigPojo().linkRegexFind.isEmpty()) {
+                                    linkPre = linkPre.replaceAll(NewApplication.getInstance().getConfigPojo().linkRegexFind, NewApplication.getInstance().getConfigPojo().linkRegexReplace);
+                                }
+                                if (!linkPre.startsWith("http")) {
+                                    linkPre = "http://www.vice.com" + linkPre;
+                                }
+                                ae.setLink(linkPre);
+                            }
+
+
+                            Elements divImage = el.select(NewApplication.getInstance().getConfigPojo().imageCss);
+                            if (divImage != null && !divImage.isEmpty() && divImage.first().hasAttr(NewApplication.getInstance().getConfigPojo().imageCssAttrName)) {
+                                String imgUrls = divImage.first().attr(NewApplication.getInstance().getConfigPojo().imageCssAttrName);
+
+                                if(NewApplication.getInstance().getConfigPojo().imageRegexFind != null && !NewApplication.getInstance().getConfigPojo().imageRegexFind.isEmpty()) {
+                                    imgUrls = imgUrls.replaceAll(NewApplication.getInstance().getConfigPojo().imageRegexFind, NewApplication.getInstance().getConfigPojo().imageRegexReplace);
+                                }
+                                if (!imgUrls.startsWith("http")) {
+                                    imgUrls = "http:" + imgUrls;
+                                }
+                                ae.setImgUrl(imgUrls);
+                            }
+
+                            Elements spanTime = el.select(NewApplication.getInstance().getConfigPojo().pubTimeCss);
+                            if (!spanTime.isEmpty()) {
+                                try {
+                                    Element timeEl = spanTime.get(0);
+                                    String timeVal = timeEl.attr(NewApplication.getInstance().getConfigPojo().pubTimeAttrName);
+                                    DateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ssZ");
+                                    Date date = formatter.parse(timeVal);
+                                    ae.setPubDate(date);
+                                } catch (Exception e) {
+                                    ae.setPubDate(new Date(duh));
+                                    duh -= 1000;
+                                }
+                            } else {
+                                ae.setPubDate(new Date(duh));
+                                duh -= 1000;
+                            }
+                            ents.add(ae);
+                        } catch (Exception e) {
+                            Log.e(TAG,"problem parsing article", e);
+                        }
+
+                        //"yyyy-MM-dd HH:mm:ssXXX"
+                        //2014-11-01 18:53:00+00:00
+
+//                        if (el.classNames().contains("story-large")) {
+//
+//                            Elements cap = el.select("div.caption > a");
+//                            if (!cap.isEmpty()) {
+//                                String linkPre = cap.get(0).attr("href");
+//                                if (!linkPre.startsWith("http")) {
+//                                    linkPre = "http://www.vice.com" + linkPre;
+//                                }
+//                                ae.setLink(linkPre);
+//                                Elements elTitle = cap.get(0).getElementsByTag("h2");
+//                                String title = elTitle.get(0).text();
+//                                ae.setTitle(title);
+//                            }
+//
+//                            Elements img = el.select("img");
+//                            if (!img.isEmpty()) {
+//                                String imgUrls = img.get(0).attr("src");
+//                                imgUrls = imgUrls.replace("220x124", "640x360");
+//                                ae.setImgUrl(imgUrls);
+//                            }
+//
+//                            ae.setPubDate(new Date(duh));
+//                            duh -= 1000;
+//                        } else {
+//                            Elements elTitle = el.select("h2 > a");
+//                            if (!elTitle.isEmpty()) {
+//                                String title = elTitle.get(0).text();
+//                                ae.setTitle(title);
+//                                String linkPre = elTitle.get(0).attr("href");
+//                                if (!linkPre.startsWith("http")) {
+//                                    linkPre = "http://www.vice.com" + linkPre;
+//                                }
+//                                ae.setLink(linkPre);
+//                            }
+//                            Elements elPubDate = el.select("div.story_meta > span:first-child");
+//                            if (!elPubDate.isEmpty()) {
+//                                String pubDate = elPubDate.get(0).text();
+//                                try {
+//                                    ae.setPubDate(new Date(duh));
+//                                    duh -= 1000;
+//                                } catch (Exception e) {
+//                                    e.printStackTrace();
+//                                }
+//                            }
+//
+//                            Elements img = el.select("img");
+//                            if (!img.isEmpty()) {
+//                                String imgUrls = img.get(0).attr("src");
+//                                imgUrls = imgUrls.replace("220x124", "640x360");
+//                                ae.setImgUrl(imgUrls);
+//                            }
+//                        }
+
+                    }
+                }
+
+                List<Future<ArsEntity>> tasks = new ArrayList<Future<ArsEntity>>();
+                for (ArsEntity ae : ents) {
+                    ImageProcessorCallable ipc = new ImageProcessorCallable(ae, getTargetDir(getApplicationContext()), getApplicationContext(), getDb(getApplicationContext()));
+                    tasks.add(NewApplication.getInstance().getThreadPoolExecutor().submit(ipc));
+                }
+
+//            rrwl.writeLock().tryLock(3, TimeUnit.MINUTES);
+                synchronized (itemsTreeSetRef) {
+                    for (Future<ArsEntity> future : tasks) {
+                        try {
+                            ArsEntity arsEntity = future.get(10, TimeUnit.MINUTES);
+                            if (!itemsTreeSetRef.add(arsEntity)) {
+                                Log.w(TAG, "Already contained" + arsEntity);
+                            }
+                        } catch (InterruptedException e) {
+                            Log.e(TAG, "Got an interrupt while waiting to complete", e);
+                        } catch (ExecutionException e) {
+                            Log.e(TAG, "Got an execution exception while waiting for task to complete", e);
+                        } catch (TimeoutException e) {
+                            Log.e(TAG, "It took longer than 4 minutes an image to download. So going to cancel it", e);
+                            future.cancel(true);
+                        }
+                    }
+                }
+
+
+                if(itemsTreeSetRef.isEmpty()) {
+                    FileInputStream fis = openFileInput("list.json");
+                    String serial = IOUtils.toString(fis);
+                    TreeSet<ArsEntity> fromJson =
+                            gson.fromJson(serial , new TypeToken<TreeSet<ArsEntity>>() {}.getType());
+                    itemsTreeSetRef = fromJson;
+                    IOUtils.closeQuietly(fis);
+                }
+
+                String serial = gson.toJson(itemsTreeSetRef);
+
+                FileOutputStream fos = openFileOutput("list.json", Context.MODE_PRIVATE);
+                IOUtils.write(serial,fos);
+                IOUtils.closeQuietly(fos);
+            } else {
+                FileInputStream fis = openFileInput("list.json");
+                String serial = IOUtils.toString(fis);
+                TreeSet<ArsEntity> fromJson =
+                        gson.fromJson(serial , new TypeToken<TreeSet<ArsEntity>>() {}.getType());
+                itemsTreeSetRef = fromJson;
+                IOUtils.closeQuietly(fis);
+            }
+//            closeDb(getApplicationContext());
+            Bundle bnd = new Bundle();
+            bnd.putString("action","update");
+            Log.e("DataFetch","Creating Message");
+            Message msg = new Message();
+            msg.setData(bnd);
+            uiHandler.sendMessage(msg);
+        } catch (Exception e) {
+            Log.e(TAG,"Straight problem Parsing",e);
+            e.printStackTrace();
+        }
+
+
+
+    }
+
+
+    public void parse2() {
         try {
             // Connect to the web site
 
@@ -192,7 +445,7 @@ public class ArsDataFetcherService extends Service {
                 }
             }
 
-            closeDb(getApplicationContext());
+//            closeDb(getApplicationContext());
             Bundle bnd = new Bundle();
             bnd.putString("action","update");
             Log.e("DataFetch","Creating Message");
@@ -203,8 +456,33 @@ public class ArsDataFetcherService extends Service {
             e.printStackTrace();
         }
 
+    }
 
 
+    public void cleanStorage(SQLiteDatabase sqLiteDatabase) {
+
+        Calendar cal = GregorianCalendar.getInstance();
+        cal.setTime(new Date());
+        cal.add(Calendar.HOUR, -48);
+        Date daysBeforeDateWeb = cal.getTime();
+        List<ArsEntity> ents = getFileEntryBeforeDate(daysBeforeDateWeb, sqLiteDatabase);
+        for (ArsEntity arsEntity : ents) {
+            if (arsEntity != null) {
+                if (arsEntity.getLocalImgPath() != null && !arsEntity.getLocalImgPath().isEmpty()) {
+                    try {
+                        File imageFile = new File(arsEntity.getLocalImgPath());
+                        boolean retVal = FileUtils.deleteQuietly(imageFile);
+                        deleteEntry(arsEntity);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Got an exception while trying to delete an image", e);
+                    }
+                } else {
+                    Log.e(TAG, "Found a image that had no file path" + arsEntity);
+                }
+            } else {
+                Log.e(TAG, "For a entry that was null. This is bad");
+            }
+        }
     }
 
     public void closeDb(Context context) {
@@ -241,7 +519,8 @@ public class ArsDataFetcherService extends Service {
             if(tabent == null) {
                 if (arsEntity.getImgUrl() != null && !arsEntity.getImgUrl().isEmpty()) {
                     File downLoaded = downloadNewFile(arsEntity.getImgUrl(), idOne.toString() + ".jpg", imgDir);
-                    FileUtils.copyFileToDirectory(downLoaded,getContext().getExternalFilesDir(Environment.DIRECTORY_PICTURES));
+
+                    FileUtils.copyFileToDirectory(downLoaded,getContext().getFilesDir());
                     arsEntity.setLocalImgPath(downLoaded.getPath());
                     arsEntity.setType(ArsEntity.IMAGE_TYPE);
                 } else {
@@ -359,7 +638,15 @@ public class ArsDataFetcherService extends Service {
         int count = getDb(getApplicationContext()).delete(ArsEntity.TableName, String.format(Locale.US, "%s = ?", ArsEntity.LINK_COLUMN), myStringArray);
     }
 
+    List<ArsEntity> getFileEntryBeforeDate(Date date, SQLiteDatabase sldb) {
 
+        List<ArsEntity> entries = null;
+        if (date != null) {
+            long timeInMilli = date.getTime();
+            entries = getArsEntity(String.format(Locale.US, "%s < %d", ArsEntity.LAST_TOUCHED_COLUMN, timeInMilli), sldb);
+        }
+        return entries;
+    }
 
     public static File downloadNewFile(String downloadUrl, String filename, File parentDir) {
         File file = new File(parentDir, filename);

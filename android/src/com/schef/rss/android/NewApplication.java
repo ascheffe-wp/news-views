@@ -1,18 +1,31 @@
 package com.schef.rss.android;
 
+import android.app.AlertDialog;
 import android.app.Application;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.Message;
+import android.provider.Settings;
+import android.telephony.TelephonyManager;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.bugsense.trace.BugSenseHandler;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.schef.rss.android.db.ArsEntity;
 
+import org.apache.commons.io.IOUtils;
+
+import java.io.FileInputStream;
 import java.util.TreeSet;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -23,6 +36,8 @@ import java.util.concurrent.TimeUnit;
  * Created by scheffela on 7/26/14.
  */
 public class NewApplication extends Application {
+
+    protected static final String TAG = NewApplication.class.getSimpleName();
 
     private static final int NUMBER_OF_CORES = Runtime.getRuntime().availableProcessors();
     private static final long KEEP_ALIVE_TIME = 4;
@@ -38,6 +53,8 @@ public class NewApplication extends Application {
 
     private Ars3d ars3d;
 
+    private ConfigPojo configPojo;
+
     private static NewApplication instance;
 
     public static NewApplication getInstance() {
@@ -47,6 +64,16 @@ public class NewApplication extends Application {
     @Override
     public void onCreate() {
         instance = this;
+
+        ConfigPojo tmp = getConfigFromFile(getApplicationContext());
+        if(tmp != null) {
+            Log.i(TAG,"Got config from file");
+            configPojo = tmp;
+        } else {
+            Log.i(TAG,"Using default Config");
+            configPojo = new ConfigPojo();
+        }
+
         BugSenseHandler.initAndStartSession(this, "45b86b4a");
 
         mDecodeWorkQueue = new LinkedBlockingQueue<Runnable>();
@@ -89,7 +116,18 @@ public class NewApplication extends Application {
                 @Override
                 public void run() {
                     Log.e("Handler","Called Parse");
-                    mService.parse();
+                    ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+                    NetworkInfo wifi = cm.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
+                    int netType = getNetworkClass(getApplicationContext());
+
+                    if (wifi != null && wifi.isConnectedOrConnecting() || (netType > 0 && netType != -1)) {
+                            mService.parse();
+                    } else {
+
+                    }
+
+
+
                 }
             }).start();
 
@@ -100,6 +138,38 @@ public class NewApplication extends Application {
             mBound = false;
         }
     };
+
+    public static int NET2G = 1;
+    public static int NET3G = 2;
+    public static int NET4G = 3;
+
+    public static int getNetworkClass(Context context) {
+        TelephonyManager mTelephonyManager = (TelephonyManager)
+                context.getSystemService(Context.TELEPHONY_SERVICE);
+        int networkType = mTelephonyManager.getNetworkType();
+        switch (networkType) {
+            case TelephonyManager.NETWORK_TYPE_GPRS:
+            case TelephonyManager.NETWORK_TYPE_EDGE:
+            case TelephonyManager.NETWORK_TYPE_CDMA:
+            case TelephonyManager.NETWORK_TYPE_1xRTT:
+            case TelephonyManager.NETWORK_TYPE_IDEN:
+                return NET2G;
+            case TelephonyManager.NETWORK_TYPE_UMTS:
+            case TelephonyManager.NETWORK_TYPE_EVDO_0:
+            case TelephonyManager.NETWORK_TYPE_EVDO_A:
+            case TelephonyManager.NETWORK_TYPE_HSDPA:
+            case TelephonyManager.NETWORK_TYPE_HSUPA:
+            case TelephonyManager.NETWORK_TYPE_HSPA:
+            case TelephonyManager.NETWORK_TYPE_EVDO_B:
+            case TelephonyManager.NETWORK_TYPE_EHRPD:
+            case TelephonyManager.NETWORK_TYPE_HSPAP:
+                return NET3G;
+            case TelephonyManager.NETWORK_TYPE_LTE:
+                return NET4G;
+            default:
+                return -1;
+        }
+    }
 
     private final Handler newHandler = new Handler() {
         @Override
@@ -115,6 +185,21 @@ public class NewApplication extends Application {
             }
         }
     };
+
+    public ConfigPojo getConfigFromFile (Context context) {
+        ConfigPojo configPojo = null;
+        try {
+            Gson gson = new Gson();
+            FileInputStream fis = context.openFileInput("config.json");
+            String serial = IOUtils.toString(fis);
+            configPojo = gson.fromJson(serial, ConfigPojo.class);
+            IOUtils.closeQuietly(fis);
+        } catch (Exception e) {
+            Log.e("ConfigLoader", "problem loading config", e);
+        }
+        return configPojo;
+    }
+
 
     public ThreadPoolExecutor getThreadPoolExecutor() {
         return threadPoolExecutor;
@@ -138,5 +223,13 @@ public class NewApplication extends Application {
 
     public void setArs3d(Ars3d ars3d) {
         this.ars3d = ars3d;
+    }
+
+    public ConfigPojo getConfigPojo() {
+        return configPojo;
+    }
+
+    public void setConfigPojo(ConfigPojo configPojo) {
+        this.configPojo = configPojo;
     }
 }
