@@ -14,6 +14,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
 import android.provider.Settings;
+import android.speech.tts.TextToSpeech;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.widget.Toast;
@@ -42,6 +43,10 @@ public class NewApplication extends Application {
     private static final int NUMBER_OF_CORES = Runtime.getRuntime().availableProcessors();
     private static final long KEEP_ALIVE_TIME = 4;
     private static final TimeUnit KEEP_ALIVE_TIME_UNIT = TimeUnit.MINUTES;
+
+    private TextToSpeech mTts;
+    private android.speech.tts.TextToSpeech.OnInitListener textListener;
+    private boolean txtInit = false;
 
     // A queue of Runnables
     private BlockingQueue<Runnable> mDecodeWorkQueue;
@@ -90,7 +95,14 @@ public class NewApplication extends Application {
         Intent intent = new Intent(this, ArsDataFetcherService.class);
         bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
         startService(intent);
-        
+
+        textListener = new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int i) {
+                txtInit = true;
+            }
+        };
+        mTts = new TextToSpeech(getApplicationContext(), textListener);
 
     }
 
@@ -232,4 +244,22 @@ public class NewApplication extends Application {
     public void setConfigPojo(ConfigPojo configPojo) {
         this.configPojo = configPojo;
     }
+
+    public TextToSpeech.OnInitListener getTextListener() {
+        return textListener;
+    }
+
+    public void setTextListener(TextToSpeech.OnInitListener textListener) {
+        this.textListener = textListener;
+    }
+
+    public TextToSpeech getmTts() {
+        return mTts;
+    }
+
+    public void setmTts(TextToSpeech mTts) {
+        this.mTts = mTts;
+    }
+
+
 }

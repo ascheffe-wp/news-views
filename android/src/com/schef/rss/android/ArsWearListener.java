@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Bundle;
+import android.speech.tts.TextToSpeech;
 import android.util.Log;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -52,7 +53,11 @@ public class ArsWearListener extends WearableListenerService {
     private GoogleApiClient mGoogleApiClient;
     private boolean mResolvingError = true;
 
-    private List<Node> curNode;
+    private List<Node> curNode = new ArrayList<Node>();
+
+    private TextToSpeech mTts;
+    private android.speech.tts.TextToSpeech.OnInitListener textListener;
+    private boolean txtInit = false;
 
     public class LocalBinder extends Binder {
         public ArsWearListener getService() {
@@ -65,6 +70,14 @@ public class ArsWearListener extends WearableListenerService {
     public void onCreate() {
         super.onCreate();
         startGoogleApiClient();
+
+        textListener = new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int i) {
+                txtInit = true;
+            }
+        };
+        mTts = new TextToSpeech(getApplicationContext(), textListener);
     }
 
     public void startGoogleApiClient() {
@@ -83,7 +96,8 @@ public class ArsWearListener extends WearableListenerService {
                                             if (nodeResult.getStatus().isSuccess()) {
                                                 Log.e(TAG, "Failed to connect to Google Api Client with status: "
                                                         + nodeResult.getStatus());
-                                                curNode = nodeResult.getNodes();
+                                                curNode.clear();
+                                                curNode.addAll(nodeResult.getNodes());
                                             }
                                         }
                                     });
@@ -227,10 +241,51 @@ public class ArsWearListener extends WearableListenerService {
 
         } else if (messageEvent.getPath().equals("/start")) {
 
+                try {
+                    byte [] msg = messageEvent.getData();
+                    String msgString = new String(msg,"UTF-8");
+                    if(NewApplication.getInstance().mService != null &&
+                            NewApplication.getInstance().mService.getItemLookUp().containsKey(msgString)) {
+                        ArsEntity arsEntity = NewApplication.getInstance().mService.getItemLookUp().get(msgString);
+                        String str = arsEntity.getText();
+
+                        if(str != null && !str.isEmpty()) {
+                            str = str.replaceAll("<.*?>", "").replaceAll("\\(.*?\\)", "");
+                            str = str.replaceAll("\\n", "").replaceAll(":", "");
+                            str = str.replaceAll("&.{0,10};", "").replaceAll("\\[", "");
+                            str = str.replaceAll("\\]", "").replaceAll("-", "");
+                            str = str.replaceAll("\\.", "\\. ").replaceAll("' ", " ");
+                            str = str.replaceAll("\u201C", "\"").replaceAll("\u201D", "\"");
+                            str = str.replaceAll("\u2018", "").replaceAll("\u2019", "");
+
+                            StringBuilder sb = new StringBuilder(str);
+
+                            sb.insert(0, "Brought to you by Vice.com.  ");
+
+                            while (!str.isEmpty()) {
+                                int strLoc = 3800;
+                                if (str.length() > strLoc) {
+                                    strLoc = str.indexOf(" ", 3800);
+                                } else {
+                                    strLoc = str.length();
+                                }
+                                String sub = str.substring(0, strLoc);
+                                if(txtInit) {
+                                    mTts.speak(sub, TextToSpeech.QUEUE_ADD, null);
+                                }
+                                str = str.substring(strLoc);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+
+                }
+
         } else if (messageEvent.getPath().equals("/stop")) {
-
+            if(txtInit) {
+                mTts.stop();
+            }
         }
-
 
     }
 
@@ -299,5 +354,13 @@ public class ArsWearListener extends WearableListenerService {
         final ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, byteStream);
         return Asset.createFromBytes(byteStream.toByteArray());
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        if(mTts != null) {
+            mTts.shutdown();
+        }
     }
 }

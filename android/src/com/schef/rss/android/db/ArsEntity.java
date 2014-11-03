@@ -22,9 +22,10 @@ public class ArsEntity implements Comparable, Serializable {
     public static String TYPE_COLUMN = "Type";
     public static String LAST_TOUCHED_COLUMN = "LastTouched";
     public static String PUB_DATE = "PubDate";
+    public static String ARTICLE_TEXT_COLUMN = "artText";
 
-    public static final String[] Columns = new String[] {LINK_COLUMN, TITLE_COLUMN, IMAGE_URL_COLUMN, LOCAL_FILE_PATH_COLUMN, TYPE_COLUMN, LAST_TOUCHED_COLUMN, PUB_DATE};
-    public static final String[] ColumnsTypes = new String[] {"TEXT PRIMARY KEY", "TEXT", "TEXT", "TEXT", "INTEGER", "INTEGER", "INTEGER" };
+    public static final String[] Columns = new String[] {LINK_COLUMN, TITLE_COLUMN, IMAGE_URL_COLUMN, LOCAL_FILE_PATH_COLUMN, TYPE_COLUMN, LAST_TOUCHED_COLUMN, PUB_DATE, ARTICLE_TEXT_COLUMN};
+    public static final String[] ColumnsTypes = new String[] {"TEXT PRIMARY KEY", "TEXT", "TEXT", "TEXT", "INTEGER", "INTEGER", "INTEGER", "TEXT" };
 
     public static ITableDescription getTableDescription() {
         return new ITableDescription() {
@@ -74,6 +75,7 @@ public class ArsEntity implements Comparable, Serializable {
     public Integer type;
     public Date lmt;
     public Date pubDate;
+    public String text;
 
     public ArsEntity() {
         super();
@@ -88,6 +90,7 @@ public class ArsEntity implements Comparable, Serializable {
         type = cursor.getInt(4);
         lmt = cursor.isNull(5) ? null : new Date(cursor.getLong(5));
         pubDate = cursor.isNull(6) ? null : new Date(cursor.getLong(6));
+        text = cursor.getString(7);
     }
 
     public String getTitle() {
@@ -146,6 +149,14 @@ public class ArsEntity implements Comparable, Serializable {
         this.pubDate = pubDate;
     }
 
+    public String getText() {
+        return text;
+    }
+
+    public void setText(String text) {
+        this.text = text;
+    }
+
     public ContentValues getContentValues() {
         ContentValues result = new ContentValues();
         result.put(LINK_COLUMN, this.getLink());
@@ -153,7 +164,7 @@ public class ArsEntity implements Comparable, Serializable {
         result.put(IMAGE_URL_COLUMN, this.getImgUrl());
         result.put(LOCAL_FILE_PATH_COLUMN, this.getLocalImgPath());
         result.put(TYPE_COLUMN, this.getType());
-        result.put(TITLE_COLUMN, this.getTitle());
+        result.put(ARTICLE_TEXT_COLUMN, this.getText());
 
 
         if(this.getLmt() != null) {
@@ -221,5 +232,17 @@ public class ArsEntity implements Comparable, Serializable {
         result = 31 * result + (lmt != null ? lmt.hashCode() : 0);
         result = 31 * result + (pubDate != null ? pubDate.hashCode() : 0);
         return result;
+    }
+
+    public ArsEntity copyAll (ArsEntity arsEntity) {
+        this.setPubDate(arsEntity.getPubDate());
+        this.setText(arsEntity.getText());
+        this.setLink(arsEntity.getLink());
+        this.setLmt(arsEntity.getLmt());
+        this.setTitle(arsEntity.getTitle());
+        this.setImgUrl(arsEntity.getImgUrl());
+        this.setLocalImgPath(arsEntity.getLocalImgPath());
+        this.setType(arsEntity.getType());
+        return this;
     }
 }

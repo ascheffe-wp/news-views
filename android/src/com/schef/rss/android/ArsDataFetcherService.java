@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.TreeSet;
@@ -78,6 +79,7 @@ public class ArsDataFetcherService extends Service {
     private Handler uiHandler;
 
     private TreeSet<ArsEntity> itemsTreeSetRef;
+    private HashMap<String,ArsEntity> itemLookUp = new HashMap<String,ArsEntity>();
 
     /**
      * Class used for the client Binder.  Because we know this service always
@@ -300,10 +302,27 @@ public class ArsDataFetcherService extends Service {
                     }
                 }
 
+//                List<Future<ArsEntity>> tasks = new ArrayList<Future<ArsEntity>>();
+//                for (ArsEntity ae : ents) {
+//                    ImageProcessorCallable ipc = new ImageProcessorCallable(ae, getTargetDir(getApplicationContext()), getApplicationContext(), getDb(getApplicationContext()));
+//                    tasks.add(NewApplication.getInstance().getThreadPoolExecutor().submit(ipc));
+//                }
+
                 List<Future<ArsEntity>> tasks = new ArrayList<Future<ArsEntity>>();
-                for (ArsEntity ae : ents) {
-                    ImageProcessorCallable ipc = new ImageProcessorCallable(ae, getTargetDir(getApplicationContext()), getApplicationContext(), getDb(getApplicationContext()));
-                    tasks.add(NewApplication.getInstance().getThreadPoolExecutor().submit(ipc));
+                for(ArsEntity ae : ents){
+                    if(!itemsTreeSetRef.contains(ae) || itemLookUp.get(ae.getLink()) == null ||
+                            itemLookUp.get(ae.getLink()).getType().equals(ArsEntity.NON_IMAGE)) {
+                        ImageProcessorCallable ipc = new ImageProcessorCallable(ae, getTargetDir(getApplicationContext()), getApplicationContext(), getDb(getApplicationContext()));
+                        tasks.add(NewApplication.getInstance().getThreadPoolExecutor().submit(ipc));
+                    }
+                }
+
+                for(ArsEntity ae : ents){
+                    if(!itemsTreeSetRef.contains(ae) || itemLookUp.get(ae.getLink()) == null ||
+                            itemLookUp.get(ae.getLink()).getText() == null || itemLookUp.get(ae.getLink()).getText().isEmpty()) {
+                        TextProcessorCallable tpc = new TextProcessorCallable(ae, getTargetDir(getApplicationContext()), getApplicationContext(), getDb(getApplicationContext()));
+                        NewApplication.getInstance().getThreadPoolExecutor().submit(tpc);
+                    }
                 }
 
 //            rrwl.writeLock().tryLock(3, TimeUnit.MINUTES);
@@ -314,6 +333,8 @@ public class ArsDataFetcherService extends Service {
                             if (!itemsTreeSetRef.add(arsEntity)) {
                                 Log.w(TAG, "Already contained" + arsEntity);
                             }
+                            itemLookUp.put(arsEntity.getLink(),arsEntity);
+
                         } catch (InterruptedException e) {
                             Log.e(TAG, "Got an interrupt while waiting to complete", e);
                         } catch (ExecutionException e) {
@@ -332,6 +353,10 @@ public class ArsDataFetcherService extends Service {
                     TreeSet<ArsEntity> fromJson =
                             gson.fromJson(serial , new TypeToken<TreeSet<ArsEntity>>() {}.getType());
                     itemsTreeSetRef = fromJson;
+                    itemLookUp = new HashMap<String, ArsEntity>();
+                    for(ArsEntity arsEntity : fromJson.descendingSet()) {
+                        itemLookUp.put(arsEntity.getLink(),arsEntity);
+                    }
                     IOUtils.closeQuietly(fis);
                 }
 
@@ -346,6 +371,10 @@ public class ArsDataFetcherService extends Service {
                 TreeSet<ArsEntity> fromJson =
                         gson.fromJson(serial , new TypeToken<TreeSet<ArsEntity>>() {}.getType());
                 itemsTreeSetRef = fromJson;
+                itemLookUp = new HashMap<String, ArsEntity>();
+                for(ArsEntity arsEntity : fromJson.descendingSet()) {
+                    itemLookUp.put(arsEntity.getLink(),arsEntity);
+                }
                 IOUtils.closeQuietly(fis);
             }
 //            closeDb(getApplicationContext());
@@ -424,8 +453,11 @@ public class ArsDataFetcherService extends Service {
 
             List<Future<ArsEntity>> tasks = new ArrayList<Future<ArsEntity>>();
             for(ArsEntity ae : ents){
-                ImageProcessorCallable ipc = new ImageProcessorCallable(ae,getTargetDir(getApplicationContext()),getApplicationContext(), getDb(getApplicationContext()));
-                tasks.add(NewApplication.getInstance().getThreadPoolExecutor().submit(ipc));
+                if(!itemsTreeSetRef.contains(ae) || itemLookUp.get(ae.getLink()) == null ||
+                        itemLookUp.get(ae.getLink()).getType().equals(ArsEntity.NON_IMAGE)) {
+                    ImageProcessorCallable ipc = new ImageProcessorCallable(ae, getTargetDir(getApplicationContext()), getApplicationContext(), getDb(getApplicationContext()));
+                    tasks.add(NewApplication.getInstance().getThreadPoolExecutor().submit(ipc));
+                }
             }
 
 //            rrwl.writeLock().tryLock(3, TimeUnit.MINUTES);
@@ -434,6 +466,7 @@ public class ArsDataFetcherService extends Service {
                     try {
                         ArsEntity arsEntity = future.get(10, TimeUnit.MINUTES);
                         itemsTreeSetRef.add(arsEntity);
+                        itemLookUp.put(arsEntity.getLink(),arsEntity);
                     } catch (InterruptedException e) {
                         Log.e(TAG, "Got an interrupt while waiting to complete", e);
                     } catch (ExecutionException e) {
@@ -442,6 +475,14 @@ public class ArsDataFetcherService extends Service {
                         Log.e(TAG, "It took longer than 4 minutes an image to download. So going to cancel it", e);
                         future.cancel(true);
                     }
+                }
+            }
+
+            for(ArsEntity ae : ents){
+                if(!itemsTreeSetRef.contains(ae) || itemLookUp.get(ae.getLink()) == null ||
+                        itemLookUp.get(ae.getLink()).getText() == null || itemLookUp.get(ae.getLink()).getText().isEmpty()) {
+                    TextProcessorCallable tpc = new TextProcessorCallable(ae, getTargetDir(getApplicationContext()), getApplicationContext(), getDb(getApplicationContext()));
+                    NewApplication.getInstance().getThreadPoolExecutor().submit(tpc);
                 }
             }
 
@@ -533,6 +574,92 @@ public class ArsDataFetcherService extends Service {
             }
             arsEntity.setLmt(new Date());
             sqLiteDatabase.insertWithOnConflict(ArsEntity.TableName, null, arsEntity.getContentValues(), SQLiteDatabase.CONFLICT_REPLACE);
+            return arsEntity;
+        }
+
+        public ArsEntity getArsEntity() {
+            return arsEntity;
+        }
+
+        public void setArsEntity(ArsEntity arsEntity) {
+            this.arsEntity = arsEntity;
+        }
+
+        public File getImgDir() {
+            return imgDir;
+        }
+
+        public void setImgDir(File imgDir) {
+            this.imgDir = imgDir;
+        }
+
+        public Context getContext() {
+            return context;
+        }
+
+        public void setContext(Context context) {
+            this.context = context;
+        }
+    }
+
+    public static class TextProcessorCallable implements Callable<ArsEntity> {
+
+        public static int OLD = 0;
+        public static int NEW = 1;
+        public static int UPDATED = 2;
+
+        private ArsEntity arsEntity;
+        private File imgDir;
+        private Context context;
+        private SQLiteDatabase sqLiteDatabase;
+        private int type;
+
+        public TextProcessorCallable(ArsEntity arsEntity, File imgDir, Context context, SQLiteDatabase sqLiteDatabase) {
+            this.arsEntity = arsEntity;
+            this.imgDir = imgDir;
+            this.context = context;
+            this.sqLiteDatabase = sqLiteDatabase;
+        }
+
+        @Override
+        public ArsEntity call() throws Exception {
+            ArsEntity tabent = getArsEntityById(arsEntity.getLink(),sqLiteDatabase);
+            if (arsEntity.getLink() != null && !arsEntity.getLink().isEmpty() &&
+                    (arsEntity.getText() == null || arsEntity.getText().isEmpty())) {
+                try {
+                    URL url = new URL(arsEntity.getLink());
+                    URLConnection con = url.openConnection();
+                    InputStream in = con.getInputStream();
+                    String encoding = con.getContentEncoding();
+                    encoding = encoding == null ? "UTF-8" : encoding;
+                    String body = IOUtils.toString(in, encoding);
+
+                    body = body.replace("<![CDATA[", "").replace("]]>", "");
+
+                    Document document = Jsoup.parse(body);
+                    Elements els = document.select(".article-content p");
+                    if(els.isEmpty()) {
+                        els = document.select(".full-content p");
+                    }
+                    StringBuilder sb = new StringBuilder();
+                    for(Element el : els) {
+                        if(!el.hasAttr("class") || el.attr("class") == null || !el.attr("class").contains("has-image") ) {
+                            sb.append(el.text() + " ");
+                        }
+                    }
+                    if(tabent != null) {
+                        arsEntity.copyAll(tabent);
+                    }
+                    arsEntity.setText(sb.toString());
+                    System.out.println(arsEntity.getText());
+                    arsEntity.setLmt(new Date());
+                    sqLiteDatabase.insertWithOnConflict(ArsEntity.TableName, null, arsEntity.getContentValues(), SQLiteDatabase.CONFLICT_REPLACE);
+
+
+                } catch (Exception e) {
+
+                }
+            }
             return arsEntity;
         }
 
@@ -683,5 +810,18 @@ public class ArsDataFetcherService extends Service {
 
     public void setItemsTreeSetRef(TreeSet<ArsEntity> itemsTreeSetRef) {
         this.itemsTreeSetRef = itemsTreeSetRef;
+        this.itemLookUp.clear();
+
+        for(ArsEntity arsEntity : itemsTreeSetRef.descendingSet()) {
+            itemLookUp.put(arsEntity.getLink(),arsEntity);
+        }
+    }
+
+    public HashMap<String, ArsEntity> getItemLookUp() {
+        return itemLookUp;
+    }
+
+    public void setItemLookUp(HashMap<String, ArsEntity> itemLookUp) {
+        this.itemLookUp = itemLookUp;
     }
 }
