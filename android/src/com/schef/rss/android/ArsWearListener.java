@@ -3,10 +3,13 @@ package com.schef.rss.android;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Point;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Bundle;
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
+import android.util.JsonReader;
 import android.util.Log;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -21,6 +24,7 @@ import com.google.android.gms.wearable.DataItem;
 import com.google.android.gms.wearable.DataItemBuffer;
 import com.google.android.gms.wearable.DataMap;
 import com.google.android.gms.wearable.DataMapItem;
+import com.google.android.gms.wearable.MessageApi;
 import com.google.android.gms.wearable.MessageEvent;
 import com.google.android.gms.wearable.Node;
 import com.google.android.gms.wearable.NodeApi;
@@ -29,7 +33,10 @@ import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
 import com.google.android.gms.wearable.WearableListenerService;
 import com.google.gson.Gson;
+import com.google.gson.TypeAdapter;
 import com.google.gson.reflect.TypeToken;
+import com.google.gson.stream.JsonToken;
+import com.google.gson.stream.JsonWriter;
 import com.schef.rss.android.db.ArsEntity;
 
 import java.io.ByteArrayOutputStream;
@@ -68,8 +75,6 @@ public class ArsWearListener extends WearableListenerService {
 
     @Override
     public void onCreate() {
-        super.onCreate();
-        startGoogleApiClient();
 
         textListener = new TextToSpeech.OnInitListener() {
             @Override
@@ -78,6 +83,15 @@ public class ArsWearListener extends WearableListenerService {
             }
         };
         mTts = new TextToSpeech(getApplicationContext(), textListener);
+        mTts.setOnUtteranceProgressListener(new MyUtteranceProgressListener(this));
+
+        startGoogleApiClient();
+        super.onCreate();
+    }
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        return super.onStartCommand(intent, flags, startId);
     }
 
     public void startGoogleApiClient() {
@@ -94,7 +108,7 @@ public class ArsWearListener extends WearableListenerService {
                                         @Override
                                         public void onResult(NodeApi.GetConnectedNodesResult nodeResult) {
                                             if (nodeResult.getStatus().isSuccess()) {
-                                                Log.e(TAG, "Failed to connect to Google Api Client with status: "
+                                                Log.e(TAG, "Connected to Google Api Client with status: "
                                                         + nodeResult.getStatus());
                                                 curNode.clear();
                                                 curNode.addAll(nodeResult.getNodes());
@@ -106,13 +120,13 @@ public class ArsWearListener extends WearableListenerService {
                                     new ResultCallback<DataItemBuffer>() {
                                         @Override
                                         public void onResult(DataItemBuffer dataItemBuffer) {
-                                            for (DataItem di : dataItemBuffer) {
+                                            for (final DataItem di : dataItemBuffer) {
                                                 Wearable.DataApi.deleteDataItems(mGoogleApiClient, di.getUri()).setResultCallback(
                                                         new ResultCallback<DataApi.DeleteDataItemsResult>() {
                                                             @Override
                                                             public void onResult(DataApi.DeleteDataItemsResult deleteDataItemsResult) {
                                                                 if (deleteDataItemsResult.getStatus().isSuccess()) {
-                                                                    Log.e(TAG, "Failed to connect to Google Api Client with status: "
+                                                                    Log.e(TAG, "Deleted Item with status: "
                                                                             + deleteDataItemsResult.getStatus());
                                                                 }
                                                             }
@@ -198,6 +212,8 @@ public class ArsWearListener extends WearableListenerService {
 
     }
 
+    public static boolean speaking = false;
+
     @Override
     public void onMessageReceived(MessageEvent messageEvent) {
         super.onMessageReceived(messageEvent);
@@ -214,7 +230,9 @@ public class ArsWearListener extends WearableListenerService {
                 PutDataMapRequest pdr = PutDataMapRequest.create("/sectionLayout");
                 PutDataRequest request = pdr.asPutDataRequest();
                 Gson gson = new Gson();
+
                 String json = gson.toJson(NewApplication.getInstance().getItemsTreeSet());
+                json = json.replaceAll("\"text\":\"(?:[^\"\\\\]|\\\\.)*\",","");
                 pdr.getDataMap().putString("layout",json);
                 request = pdr.asPutDataRequest();
                 Wearable.DataApi.putDataItem(mGoogleApiClient, request).setResultCallback(
@@ -222,7 +240,8 @@ public class ArsWearListener extends WearableListenerService {
                             @Override
                             public void onResult(DataApi.DataItemResult result) {
                                 if(result.getStatus() != null) {
-
+                                    Log.e(TAG, "Added layout data item with status: "
+                                            + result.getStatus());
                                 }
                             }
                         }
@@ -242,38 +261,46 @@ public class ArsWearListener extends WearableListenerService {
         } else if (messageEvent.getPath().equals("/start")) {
 
                 try {
-                    byte [] msg = messageEvent.getData();
-                    String msgString = new String(msg,"UTF-8");
-                    if(NewApplication.getInstance().mService != null &&
-                            NewApplication.getInstance().mService.getItemLookUp().containsKey(msgString)) {
-                        ArsEntity arsEntity = NewApplication.getInstance().mService.getItemLookUp().get(msgString);
-                        String str = arsEntity.getText();
+                    if(txtInit && mTts != null && !mTts.isSpeaking()) {
+                        byte[] msg = messageEvent.getData();
+                        String msgString = new String(msg, "UTF-8");
+                        if (NewApplication.getInstance().mService != null &&
+                                NewApplication.getInstance().mService.getItemLookUp().containsKey(msgString)) {
+                            ArsEntity arsEntity = NewApplication.getInstance().mService.getItemLookUp().get(msgString);
+                            String str = arsEntity.getText();
 
-                        if(str != null && !str.isEmpty()) {
-                            str = str.replaceAll("<.*?>", "").replaceAll("\\(.*?\\)", "");
-                            str = str.replaceAll("\\n", "").replaceAll(":", "");
-                            str = str.replaceAll("&.{0,10};", "").replaceAll("\\[", "");
-                            str = str.replaceAll("\\]", "").replaceAll("-", "");
-                            str = str.replaceAll("\\.", "\\. ").replaceAll("' ", " ");
-                            str = str.replaceAll("\u201C", "\"").replaceAll("\u201D", "\"");
-                            str = str.replaceAll("\u2018", "").replaceAll("\u2019", "");
+                            if (str != null && !str.isEmpty()) {
+                                str = str.replaceAll("<.*?>", "").replaceAll("\\(.*?\\)", "");
+                                str = str.replaceAll("\\n", "").replaceAll(":", "");
+                                str = str.replaceAll("&.{0,10};", "").replaceAll("\\[", "");
+                                str = str.replaceAll("\\]", "").replaceAll("-", "");
+                                str = str.replaceAll("\\.", "\\. ").replaceAll("' ", " ");
+                                str = str.replaceAll("\u201C", "\"").replaceAll("\u201D", "\"");
+                                str = str.replaceAll("\u2018", "").replaceAll("\u2019", "");
+//                            str = str.replaceAll("&", " and ");
 
-                            StringBuilder sb = new StringBuilder(str);
 
-                            sb.insert(0, "Brought to you by Vice.com.  ");
+                                StringBuilder sb = new StringBuilder(str);
 
-                            while (!str.isEmpty()) {
-                                int strLoc = 3800;
-                                if (str.length() > strLoc) {
-                                    strLoc = str.indexOf(" ", 3800);
-                                } else {
-                                    strLoc = str.length();
+                                sb.insert(0, "Brought to you by Vice.com.  ");
+
+
+
+                                while (!str.isEmpty()) {
+                                    int strLoc = 3800;
+                                    if (str.length() > strLoc) {
+                                        strLoc = str.indexOf(" ", 3800);
+                                    } else {
+                                        strLoc = str.length();
+                                    }
+                                    String sub = str.substring(0, strLoc);
+                                    if (txtInit) {
+                                        mTts.speak(sub, TextToSpeech.QUEUE_ADD, null);
+                                    }
+                                    str = str.substring(strLoc);
                                 }
-                                String sub = str.substring(0, strLoc);
-                                if(txtInit) {
-                                    mTts.speak(sub, TextToSpeech.QUEUE_ADD, null);
-                                }
-                                str = str.substring(strLoc);
+                                speaking = true;
+
                             }
                         }
                     }
@@ -284,6 +311,7 @@ public class ArsWearListener extends WearableListenerService {
         } else if (messageEvent.getPath().equals("/stop")) {
             if(txtInit) {
                 mTts.stop();
+                speaking = false;
             }
         }
 
@@ -359,8 +387,56 @@ public class ArsWearListener extends WearableListenerService {
     @Override
     public void onDestroy() {
         super.onDestroy();
+    }
+
+    public void ttsStop () {
         if(mTts != null) {
+            txtInit = false;
+            mTts.stop();
             mTts.shutdown();
+            mTts = null;
         }
     }
+
+    public static class MyUtteranceProgressListener extends UtteranceProgressListener {
+
+        ArsWearListener arsWearListener;
+
+        public MyUtteranceProgressListener(ArsWearListener arsWearListener) {
+            this.arsWearListener = arsWearListener;
+        }
+
+        @Override
+        public void onStart(String utteranceId) {
+            if(arsWearListener.mGoogleApiClient != null && arsWearListener.curNode != null && !arsWearListener.curNode.isEmpty()) {
+                Wearable.MessageApi.sendMessage(
+                        arsWearListener.mGoogleApiClient, arsWearListener.curNode.get(0).getId(), "/startedPlayback", "2".getBytes()).setResultCallback(
+                        new ResultCallback<MessageApi.SendMessageResult>() {
+                            @Override
+                            public void onResult(MessageApi.SendMessageResult sendMessageResult) {
+                                if (sendMessageResult.getStatus().isSuccess()) {
+                                    Log.e(TAG, "Send started playback with status: "
+                                            + sendMessageResult.getStatus());
+                                }
+                            }
+                        }
+                );
+            }
+        }
+
+        @Override
+        public void onDone(String utteranceId) {
+            arsWearListener.ttsStop();
+        }
+
+        @Override
+        public void onError(String utteranceId) {
+
+        }
+    }
+
+
+
+
+
 }

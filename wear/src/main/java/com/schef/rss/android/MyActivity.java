@@ -1,6 +1,7 @@
 package com.schef.rss.android;
 
 import android.app.Activity;
+import android.app.Fragment;
 import android.content.Context;
 import android.content.IntentSender;
 import android.content.res.Resources;
@@ -16,6 +17,7 @@ import android.support.wearable.view.WatchViewStub;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowInsets;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -340,6 +342,14 @@ public class MyActivity extends Activity implements DataApi.DataListener,
     @Override
     public void onMessageReceived(MessageEvent messageEvent) {
 
+        if (messageEvent.getPath().equals("/startedPlayback")) {
+//            Fragment cur = getFragmentManager().findFragmentById(R.id.watch_frag_id);
+//            cur.getView().findViewById(R.id.progress_id).setVisibility(View.GONE);
+//            sampleGridPagerAdapter.
+//            ProgressBar progressBar = (ProgressBar) view.findViewById(R.id.progress_id);
+        }
+
+//
     }
 
     @Override

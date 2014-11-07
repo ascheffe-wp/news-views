@@ -34,6 +34,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -163,8 +164,10 @@ public class SampleGridPagerAdapter extends FragmentGridPagerAdapter {
                     mGoogleApiClient, curNode, arsEntity);
             return fragment;
         } else {
-            CardFragment cardFragment = CardFragment.create("test", "test", R.drawable.card_background);
-            return cardFragment;
+            BlankFragment bf = new BlankFragment();
+            return bf;
+//            CardFragment cardFragment = CardFragment.create("test", "test", R.drawable.card_background);
+//            return cardFragment;
         }
 
     }
@@ -185,6 +188,8 @@ public class SampleGridPagerAdapter extends FragmentGridPagerAdapter {
 //            return ImageReference.forDrawable(R.drawable.card_background);
 //        }
 //    }
+
+
 
     @Override
     public int getRowCount() {
@@ -216,6 +221,7 @@ public class SampleGridPagerAdapter extends FragmentGridPagerAdapter {
         private ImageView stopImageView;
         private ImageView startImageView;
         private ImageView cardBackImageView;
+        private ProgressBar progressBar;
 
         ArsEntity arsEntity;
 
@@ -251,6 +257,9 @@ public class SampleGridPagerAdapter extends FragmentGridPagerAdapter {
             stopImageView = (ImageView) view.findViewById(R.id.button_image_stop);
             stopImageView.setOnClickListener(this);
 
+            progressBar = (ProgressBar) view.findViewById(R.id.progress_id);
+
+
             cardBackImageView = (ImageView) view.findViewById(R.id.cardBackImage);
             String newPath = arsEntity.getLocalImgPath().replaceAll(".*/app_localfiles","");
             File file = new File(view.getContext().getFilesDir(), newPath);
@@ -259,9 +268,9 @@ public class SampleGridPagerAdapter extends FragmentGridPagerAdapter {
 //                R.layout.fragment_action
 
                 Bitmap bitmap = BitmapFactory.decodeFile(file.getAbsolutePath());
-                BitmapDrawable ob = new BitmapDrawable(bitmap);
-                view.setBackground(ob);
-//                cardBackImageView.setImageBitmap(bitmap);
+//                BitmapDrawable ob = new BitmapDrawable(bitmap);
+//                view.setBackground(ob);
+                cardBackImageView.setImageBitmap(bitmap);
             }
 
 //            view.setOnClickListener(this);
@@ -280,6 +289,7 @@ public class SampleGridPagerAdapter extends FragmentGridPagerAdapter {
                     playing = false;
                     if(mGoogleApiClient != null && curNode != null && !curNode.isEmpty()) {
                         if(curNode != null && !curNode.isEmpty() && arsEntity != null && arsEntity.getLink() != null && !arsEntity.getLink().isEmpty()) {
+                            progressBar.setVisibility(View.VISIBLE);
                             Wearable.MessageApi.sendMessage(
                                     mGoogleApiClient, curNode.get(0).getId(), "/stop", "2".getBytes()).setResultCallback(
                                     new ResultCallback<MessageApi.SendMessageResult>() {
@@ -300,6 +310,7 @@ public class SampleGridPagerAdapter extends FragmentGridPagerAdapter {
                     playing = true;
                     if(mGoogleApiClient != null && curNode != null && !curNode.isEmpty()) {
                         if(curNode != null && !curNode.isEmpty() && arsEntity != null && arsEntity.getLink() != null && !arsEntity.getLink().isEmpty()) {
+                            progressBar.setVisibility(View.VISIBLE);
                             Wearable.MessageApi.sendMessage(
                                     mGoogleApiClient, curNode.get(0).getId(), "/start", arsEntity.getLink().getBytes()).setResultCallback(
                                     new ResultCallback<MessageApi.SendMessageResult>() {

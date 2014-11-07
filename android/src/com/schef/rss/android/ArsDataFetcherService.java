@@ -643,7 +643,8 @@ public class ArsDataFetcherService extends Service {
                     }
                     StringBuilder sb = new StringBuilder();
                     for(Element el : els) {
-                        if(!el.hasAttr("class") || el.attr("class") == null || !el.attr("class").contains("has-image") ) {
+                        if(!el.hasAttr("class") || el.attr("class") == null || !el.attr("class").contains("has-image") ||
+                                !el.attr("class").contains("photo-credit")) {
                             sb.append(el.text() + " ");
                         }
                     }
