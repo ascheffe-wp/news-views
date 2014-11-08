@@ -20,7 +20,7 @@ public class ConfigPojo implements Serializable{
     public String linkRegexFind = "";
     public String linkRegexReplace = "";
 
-    public String imageCss = "div.image-container > a > noscript > img";
+    public String imageCss = "div.image-container a img:not([data-sources])";
     public String imageCssAttrName = "src";
     public String imageRegexFind = "";
     public String imageRegexReplace = "";

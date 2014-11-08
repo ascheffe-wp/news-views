@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteException;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Binder;
@@ -153,6 +154,7 @@ public class ArsDataFetcherService extends Service {
                 }
 
                 // Connect to the web site
+
                 cleanStorage(getDb(getApplicationContext()));
 
                 URL url = new URL(NewApplication.getInstance().getConfigPojo().viceUrl1);
@@ -746,18 +748,20 @@ public class ArsDataFetcherService extends Service {
 
     public static List<ArsEntity> getArsEntity(String query, SQLiteDatabase sldb) {
         Cursor cursor = null;
+        ArrayList<ArsEntity> result = new ArrayList<ArsEntity>();
         try {
             cursor = sldb.query(ArsEntity.TableName, ArsEntity.Columns, query, null, null, null, null);
-            ArrayList<ArsEntity> result = new ArrayList<ArsEntity>();
             while (cursor.moveToNext()) {
                 result.add(new ArsEntity(cursor));
             }
-            return result;
+        } catch (SQLiteException sqle) {
+                Log.e(TAG, "Sql exception", sqle);
         } finally {
             if (cursor != null) {
                 cursor.close();
             }
         }
+        return result;
     }
 
     public void deleteEntry(ArsEntity arsEntity) {
