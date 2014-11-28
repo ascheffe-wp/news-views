@@ -1,28 +1,23 @@
 package com.schef.rss.android;
 
-import android.app.AlertDialog;
 import android.app.Application;
 import android.content.ComponentName;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.os.Message;
 import android.provider.Settings;
 import android.speech.tts.TextToSpeech;
 import android.telephony.TelephonyManager;
 import android.util.Log;
-import android.widget.Toast;
 
-import com.bugsense.trace.BugSenseHandler;
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 import com.schef.rss.android.db.ArsEntity;
+import com.splunk.mint.Mint;
 
 import org.apache.commons.io.IOUtils;
 
@@ -79,7 +74,11 @@ public class NewApplication extends Application {
             configPojo = new ConfigPojo();
         }
 
-        BugSenseHandler.initAndStartSession(this, "45b86b4a");
+        String android_id = Settings.Secure.getString(getApplicationContext().getContentResolver(),
+                Settings.Secure.ANDROID_ID);
+        Mint.initAndStartSession(this, "45b86b4a");
+        Mint.setUserIdentifier(android_id);
+
 
         mDecodeWorkQueue = new LinkedBlockingQueue<Runnable>();
 

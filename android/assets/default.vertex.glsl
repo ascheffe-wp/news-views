@@ -24,7 +24,7 @@ uniform mat3 u_normalMatrix;
 varying vec3 v_normal;
 #endif // normalFlag
 
-#ifdef textureFlag
+#if defined(textureFlag) || defined(videoTextureFlag)
 attribute vec2 a_texCoord0;
 varying vec2 v_texCoords0;
 #endif // textureFlag
@@ -176,7 +176,7 @@ varying vec3 v_ambientLight;
 #endif // lightingFlag
 
 void main() {
-	#ifdef textureFlag
+	#if defined(textureFlag) || defined(videoTextureFlag)
 		v_texCoords0 = a_texCoord0;
 	#endif // textureFlag
 	

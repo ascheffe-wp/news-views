@@ -6,8 +6,18 @@
     android:layout_height="match_parent"
     android:gravity="center" >
 
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textAppearance="?android:attr/textAppearanceLarge"
+        android:text="Please Open the paired app on your Phone before using the Watch app. Content has to be download to your phone before it can be used on the watch."
+        android:id="@+id/textView2"
+        android:gravity="center|center_vertical|center_horizontal"
+        android:textAlignment="center" />
+
     <ProgressBar
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:indeterminate="true" />
+        android:indeterminate="true"
+        android:layout_centerInParent="true" />
 </RelativeLayout>

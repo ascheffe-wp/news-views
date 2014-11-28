@@ -1,11 +1,13 @@
 package com.schef.rss.android;
 
+import android.annotation.TargetApi;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Point;
 import android.net.Uri;
 import android.os.Binder;
+import android.os.Build;
 import android.os.Bundle;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
@@ -47,8 +49,10 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.TreeSet;
+import java.util.UUID;
 
 /**
  * Created by scheffela on 11/1/14.
@@ -73,6 +77,7 @@ public class ArsWearListener extends WearableListenerService {
         }
     }
 
+
     @Override
     public void onCreate() {
 
@@ -83,10 +88,17 @@ public class ArsWearListener extends WearableListenerService {
             }
         };
         mTts = new TextToSpeech(getApplicationContext(), textListener);
-        mTts.setOnUtteranceProgressListener(new MyUtteranceProgressListener(this));
+        setupUtterance();
+        mTts.setOnUtteranceCompletedListener(new MyOnUtteranceCompletedListener(this));
+
 
         startGoogleApiClient();
         super.onCreate();
+    }
+
+    @TargetApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1)
+    public void setupUtterance () {
+        mTts.setOnUtteranceProgressListener(new MyUtteranceProgressListener(this));
     }
 
     @Override
@@ -261,52 +273,55 @@ public class ArsWearListener extends WearableListenerService {
         } else if (messageEvent.getPath().equals("/start")) {
 
                 try {
-                    if(txtInit && mTts != null && !mTts.isSpeaking()) {
-                        byte[] msg = messageEvent.getData();
-                        String msgString = new String(msg, "UTF-8");
-                        if (NewApplication.getInstance().mService != null &&
-                                NewApplication.getInstance().mService.getItemLookUp().containsKey(msgString)) {
-                            ArsEntity arsEntity = NewApplication.getInstance().mService.getItemLookUp().get(msgString);
-                            String str = arsEntity.getText();
+                    synchronized (this) {
+                        if (txtInit && mTts != null && !mTts.isSpeaking()) {
+                            byte[] msg = messageEvent.getData();
+                            String msgString = new String(msg, "UTF-8");
+                            if (NewApplication.getInstance().mService != null &&
+                                    NewApplication.getInstance().mService.getItemLookUp().containsKey(msgString)) {
+                                ArsEntity arsEntity = NewApplication.getInstance().mService.getItemLookUp().get(msgString);
+                                String str = arsEntity.getText();
 
-                            if (str != null && !str.isEmpty()) {
-                                str = str.replaceAll("<.*?>", "").replaceAll("\\(.*?\\)", "");
-                                str = str.replaceAll("\\n", "").replaceAll(":", "");
-                                str = str.replaceAll("&.{0,10};", "").replaceAll("\\[", "");
-                                str = str.replaceAll("\\]", "").replaceAll("-", "");
-                                str = str.replaceAll("\\.", "\\. ").replaceAll("' ", " ");
-                                str = str.replaceAll("\u201C", "\"").replaceAll("\u201D", "\"");
-                                str = str.replaceAll("\u2018", "").replaceAll("\u2019", "");
+                                if (str != null && !str.isEmpty()) {
+                                    str = str.replaceAll("<.*?>", "").replaceAll("\\(.*?\\)", "");
+                                    str = str.replaceAll("\\n", "").replaceAll(":", "");
+                                    str = str.replaceAll("&.{0,10};", "").replaceAll("\\[", "");
+                                    str = str.replaceAll("\\]", "").replaceAll("-", "");
+                                    str = str.replaceAll("\\.", "\\. ").replaceAll("' ", " ");
+                                    str = str.replaceAll("\u201C", "\"").replaceAll("\u201D", "\"");
+                                    str = str.replaceAll("\u2018", "").replaceAll("\u2019", "");
 //                            str = str.replaceAll("&", " and ");
 
 
-                                StringBuilder sb = new StringBuilder(str);
+                                    StringBuilder sb = new StringBuilder(str);
 
-                                sb.insert(0, "Brought to you by Vice.com.  ");
+                                    sb.insert(0, "Brought to you by Vice.com.  ");
 
 
-
-                                while (!str.isEmpty()) {
-                                    int strLoc = 3800;
-                                    if (str.length() > strLoc) {
-                                        strLoc = str.indexOf(" ", 3800);
-                                    } else {
-                                        strLoc = str.length();
+                                    while (!str.isEmpty()) {
+                                        int strLoc = 3800;
+                                        if (str.length() > strLoc) {
+                                            strLoc = str.indexOf(" ", 3800);
+                                        } else {
+                                            strLoc = str.length();
+                                        }
+                                        String sub = str.substring(0, strLoc);
+                                        if (txtInit) {
+                                            HashMap<String, String> map = new HashMap<String, String>();
+                                            map.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, UUID.randomUUID().toString());
+                                            mTts.speak(sub, TextToSpeech.QUEUE_ADD, map);
+                                        }
+                                        str = str.substring(strLoc);
                                     }
-                                    String sub = str.substring(0, strLoc);
-                                    if (txtInit) {
-                                        mTts.speak(sub, TextToSpeech.QUEUE_ADD, null);
-                                    }
-                                    str = str.substring(strLoc);
+                                    speaking = true;
+
                                 }
-                                speaking = true;
-
                             }
                         }
                     }
-                } catch (Exception e) {
+                    }catch(Exception e){
 
-                }
+                    }
 
         } else if (messageEvent.getPath().equals("/stop")) {
             if(txtInit) {
@@ -325,8 +340,14 @@ public class ArsWearListener extends WearableListenerService {
 
     @Override
     public void onPeerDisconnected(Node peer) {
-        super.onPeerDisconnected(peer);
         curNode.remove(peer);
+
+        if(mTts != null) {
+            mTts.stop();
+        }
+
+        super.onPeerDisconnected(peer);
+
     }
 
 
@@ -436,6 +457,19 @@ public class ArsWearListener extends WearableListenerService {
     }
 
 
+    public static class MyOnUtteranceCompletedListener implements TextToSpeech.OnUtteranceCompletedListener {
+
+        ArsWearListener arsWearListener;
+
+        public MyOnUtteranceCompletedListener(ArsWearListener arsWearListener) {
+            this.arsWearListener = arsWearListener;
+        }
+
+        @Override
+        public void onUtteranceCompleted(String utteranceId) {
+            arsWearListener.ttsStop();
+        }
+    }
 
 
 

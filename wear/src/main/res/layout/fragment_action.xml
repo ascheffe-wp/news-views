@@ -28,7 +28,9 @@
         android:shadowDy="0.0"
         android:shadowRadius="2.0"
         android:text="hey"
-        android:visibility="visible" />
+        android:visibility="visible"
+        android:textAlignment="center"
+        android:layout_centerHorizontal="true" />
 
     <ImageView android:id="@+id/button_image_stop"
         android:layout_alignParentBottom="true"
@@ -54,8 +56,9 @@
         android:id="@+id/progress_id"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:indeterminate="true"
-        android:visibility="gone"/>
+        android:indeterminate="false"
+        android:visibility="gone"
+        android:layout_centerInParent="true" />
     <!--android:layout_width="match_parent"-->
             <!--android:layout_height="wrap_content"-->
             <!--android:layout_below="@id/button_image"-->

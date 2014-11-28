@@ -60,6 +60,26 @@
         android:adjustViewBounds="true"
         android:baselineAlignBottom="false" />
 
+
+    <ImageView
+        android:layout_width="90dp"
+        android:layout_height="60dp"
+        android:id="@+id/tmpImg"
+        android:layout_gravity="left|top"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentLeft="true"
+        android:background="#008"
+        android:clickable="true"
+        android:focusable="false"
+        android:adjustViewBounds="true"
+        android:visibility="gone"
+        android:baselineAlignBottom="false" />
+
+    <TextureView
+        android:id="@+id/surface"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"/>
     <!--<fragment-->
         <!--android:layout_width="575dp"-->
         <!--android:layout_height="wrap_content"-->

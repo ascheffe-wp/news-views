@@ -101,6 +101,13 @@ public class ArsDataFetcherService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                parse();
+            }
+        }).start();
+
         return 1;
     }
 
@@ -126,127 +133,128 @@ public class ArsDataFetcherService extends Service {
 
 
     public void parse() {
-        try {
-            ConnectivityManager cm = (ConnectivityManager) getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
-            NetworkInfo ni = cm.getActiveNetworkInfo();
-            Gson gson = new Gson();
-            if(ni != null && ni.isConnected()) {
-                //
-                try {
-                    URL url = new URL("https://s3.amazonaws.com/arsappdir/config.json");
-                    URLConnection connection = url.openConnection();
-                    HttpURLConnection httpConnection = (HttpURLConnection) connection;
+        synchronized (FILES_ROOT) {
+            try {
+                ConnectivityManager cm = (ConnectivityManager) getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+                NetworkInfo ni = cm.getActiveNetworkInfo();
+                Gson gson = new Gson();
+                if (ni != null && ni.isConnected()) {
+                    //
+                    try {
+                        URL url = new URL("https://s3.amazonaws.com/arsappdir/config.json");
+                        URLConnection connection = url.openConnection();
+                        HttpURLConnection httpConnection = (HttpURLConnection) connection;
 
-                    if (httpConnection.getResponseCode() == HttpURLConnection.HTTP_OK) {
-                        String configJson = IOUtils.toString(httpConnection.getInputStream());
-                        Log.w("Config",configJson);
-                        ConfigPojo cp = gson.fromJson(configJson,ConfigPojo.class);
+                        if (httpConnection.getResponseCode() == HttpURLConnection.HTTP_OK) {
+                            String configJson = IOUtils.toString(httpConnection.getInputStream());
+                            Log.w("Config", configJson);
+                            ConfigPojo cp = gson.fromJson(configJson, ConfigPojo.class);
 
-                        FileOutputStream fos = openFileOutput("config.json", Context.MODE_PRIVATE);
-                        IOUtils.write(configJson,fos);
-                        IOUtils.closeQuietly(fos);
+                            FileOutputStream fos = openFileOutput("config.json", Context.MODE_PRIVATE);
+                            IOUtils.write(configJson, fos);
+                            IOUtils.closeQuietly(fos);
 
-                        NewApplication.getInstance().setConfigPojo(cp);
-                        httpConnection.disconnect();
+                            NewApplication.getInstance().setConfigPojo(cp);
+                            httpConnection.disconnect();
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error Getting config", e);
                     }
-                } catch (Exception e) {
-                    Log.e(TAG,"Error Getting config",e);
-                }
 
-                // Connect to the web site
+                    // Connect to the web site
 
-                cleanStorage(getDb(getApplicationContext()));
+                    cleanStorage(getDb(getApplicationContext()));
 
-                URL url = new URL(NewApplication.getInstance().getConfigPojo().viceUrl1);
-                URLConnection con = url.openConnection();
-                InputStream in = con.getInputStream();
-                String encoding = con.getContentEncoding();
-                encoding = encoding == null ? "UTF-8" : encoding;
-                String body = IOUtils.toString(in, encoding);
+                    URL url = new URL(NewApplication.getInstance().getConfigPojo().viceUrl1);
+                    URLConnection con = url.openConnection();
+                    InputStream in = con.getInputStream();
+                    String encoding = con.getContentEncoding();
+                    encoding = encoding == null ? "UTF-8" : encoding;
+                    String body = IOUtils.toString(in, encoding);
 
-                URL url2 = new URL(NewApplication.getInstance().getConfigPojo().viceUrl2);
-                URLConnection con2 = url2.openConnection();
-                InputStream in2 = con2.getInputStream();
-                String encoding2 = con2.getContentEncoding();
-                encoding2 = encoding2 == null ? "UTF-8" : encoding2;
-                String body2 = IOUtils.toString(in2, encoding2);
+                    URL url2 = new URL(NewApplication.getInstance().getConfigPojo().viceUrl2);
+                    URLConnection con2 = url2.openConnection();
+                    InputStream in2 = con2.getInputStream();
+                    String encoding2 = con2.getContentEncoding();
+                    encoding2 = encoding2 == null ? "UTF-8" : encoding2;
+                    String body2 = IOUtils.toString(in2, encoding2);
 
 
-                body = body.replace("<![CDATA[", "").replace("]]>", "");
+                    body = body.replace("<![CDATA[", "").replace("]]>", "");
 
-                body2 = body2.replace("<![CDATA[", "").replace("]]>", "");
+                    body2 = body2.replace("<![CDATA[", "").replace("]]>", "");
 
-                Document document = Jsoup.parse(body);
-                Document document2 = Jsoup.parse(body2);
-                Elements items = document.select(NewApplication.getInstance().getConfigPojo().articleCssPage1);
-                Elements items2 = document2.select(NewApplication.getInstance().getConfigPojo().articleCssPage2);
+                    Document document = Jsoup.parse(body);
+                    Document document2 = Jsoup.parse(body2);
+                    Elements items = document.select(NewApplication.getInstance().getConfigPojo().articleCssPage1);
+                    Elements items2 = document2.select(NewApplication.getInstance().getConfigPojo().articleCssPage2);
 
-                items.addAll(items2);
-                List<ArsEntity> ents = new ArrayList<ArsEntity>();
+                    items.addAll(items2);
+                    List<ArsEntity> ents = new ArrayList<ArsEntity>();
 
-                Long duh = System.currentTimeMillis();
+                    Long duh = System.currentTimeMillis();
 
-                if (!items.isEmpty()) {
-                    for (int i = 0; i < items.size(); i++) {
-                        try {
-                            ArsEntity ae = new ArsEntity();
+                    if (!items.isEmpty()) {
+                        for (int i = 0; i < items.size(); i++) {
+                            try {
+                                ArsEntity ae = new ArsEntity();
 
-                            Element el = items.get(i);
+                                Element el = items.get(i);
 
-                            Elements titleAnchor = el.select(NewApplication.getInstance().getConfigPojo().titleCss);
-                            if(!titleAnchor.isEmpty() && titleAnchor.first() != null && titleAnchor.first().hasText()) {
-                                ae.setTitle(titleAnchor.first().text());
-                            }
-
-                            Elements linkAnchor = el.select(NewApplication.getInstance().getConfigPojo().linkCss); //.get(0);
-                            if(linkAnchor != null && !linkAnchor.isEmpty() && linkAnchor.first().hasAttr(NewApplication.getInstance().getConfigPojo().linkCssAttrName)) {
-                                String linkPre = linkAnchor.first().attr(NewApplication.getInstance().getConfigPojo().linkCssAttrName);
-                                if(NewApplication.getInstance().getConfigPojo().linkRegexFind != null && !NewApplication.getInstance().getConfigPojo().linkRegexFind.isEmpty()) {
-                                    linkPre = linkPre.replaceAll(NewApplication.getInstance().getConfigPojo().linkRegexFind, NewApplication.getInstance().getConfigPojo().linkRegexReplace);
+                                Elements titleAnchor = el.select(NewApplication.getInstance().getConfigPojo().titleCss);
+                                if (!titleAnchor.isEmpty() && titleAnchor.first() != null && titleAnchor.first().hasText()) {
+                                    ae.setTitle(titleAnchor.first().text());
                                 }
-                                if (!linkPre.startsWith("http")) {
-                                    linkPre = "http://www.vice.com" + linkPre;
+
+                                Elements linkAnchor = el.select(NewApplication.getInstance().getConfigPojo().linkCss); //.get(0);
+                                if (linkAnchor != null && !linkAnchor.isEmpty() && linkAnchor.first().hasAttr(NewApplication.getInstance().getConfigPojo().linkCssAttrName)) {
+                                    String linkPre = linkAnchor.first().attr(NewApplication.getInstance().getConfigPojo().linkCssAttrName);
+                                    if (NewApplication.getInstance().getConfigPojo().linkRegexFind != null && !NewApplication.getInstance().getConfigPojo().linkRegexFind.isEmpty()) {
+                                        linkPre = linkPre.replaceAll(NewApplication.getInstance().getConfigPojo().linkRegexFind, NewApplication.getInstance().getConfigPojo().linkRegexReplace);
+                                    }
+                                    if (!linkPre.startsWith("http")) {
+                                        linkPre = "http://www.vice.com" + linkPre;
+                                    }
+                                    ae.setLink(linkPre);
                                 }
-                                ae.setLink(linkPre);
-                            }
 
 
-                            Elements divImage = el.select(NewApplication.getInstance().getConfigPojo().imageCss);
-                            if (divImage != null && !divImage.isEmpty() && divImage.first().hasAttr(NewApplication.getInstance().getConfigPojo().imageCssAttrName)) {
-                                String imgUrls = divImage.first().attr(NewApplication.getInstance().getConfigPojo().imageCssAttrName);
+                                Elements divImage = el.select(NewApplication.getInstance().getConfigPojo().imageCss);
+                                if (divImage != null && !divImage.isEmpty() && divImage.first().hasAttr(NewApplication.getInstance().getConfigPojo().imageCssAttrName)) {
+                                    String imgUrls = divImage.first().attr(NewApplication.getInstance().getConfigPojo().imageCssAttrName);
 
-                                if(NewApplication.getInstance().getConfigPojo().imageRegexFind != null && !NewApplication.getInstance().getConfigPojo().imageRegexFind.isEmpty()) {
-                                    imgUrls = imgUrls.replaceAll(NewApplication.getInstance().getConfigPojo().imageRegexFind, NewApplication.getInstance().getConfigPojo().imageRegexReplace);
+                                    if (NewApplication.getInstance().getConfigPojo().imageRegexFind != null && !NewApplication.getInstance().getConfigPojo().imageRegexFind.isEmpty()) {
+                                        imgUrls = imgUrls.replaceAll(NewApplication.getInstance().getConfigPojo().imageRegexFind, NewApplication.getInstance().getConfigPojo().imageRegexReplace);
+                                    }
+                                    if (!imgUrls.startsWith("http")) {
+                                        imgUrls = "http:" + imgUrls;
+                                    }
+                                    ae.setImgUrl(imgUrls);
                                 }
-                                if (!imgUrls.startsWith("http")) {
-                                    imgUrls = "http:" + imgUrls;
-                                }
-                                ae.setImgUrl(imgUrls);
-                            }
 
-                            Elements spanTime = el.select(NewApplication.getInstance().getConfigPojo().pubTimeCss);
-                            if (!spanTime.isEmpty()) {
-                                try {
-                                    Element timeEl = spanTime.get(0);
-                                    String timeVal = timeEl.attr(NewApplication.getInstance().getConfigPojo().pubTimeAttrName);
-                                    DateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ssZ");
-                                    Date date = formatter.parse(timeVal);
-                                    ae.setPubDate(date);
-                                } catch (Exception e) {
+                                Elements spanTime = el.select(NewApplication.getInstance().getConfigPojo().pubTimeCss);
+                                if (!spanTime.isEmpty()) {
+                                    try {
+                                        Element timeEl = spanTime.get(0);
+                                        String timeVal = timeEl.attr(NewApplication.getInstance().getConfigPojo().pubTimeAttrName);
+                                        DateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ssZ");
+                                        Date date = formatter.parse(timeVal);
+                                        ae.setPubDate(date);
+                                    } catch (Exception e) {
+                                        ae.setPubDate(new Date(duh));
+                                        duh -= 1000;
+                                    }
+                                } else {
                                     ae.setPubDate(new Date(duh));
                                     duh -= 1000;
                                 }
-                            } else {
-                                ae.setPubDate(new Date(duh));
-                                duh -= 1000;
+                                ents.add(ae);
+                            } catch (Exception e) {
+                                Log.e(TAG, "problem parsing article", e);
                             }
-                            ents.add(ae);
-                        } catch (Exception e) {
-                            Log.e(TAG,"problem parsing article", e);
-                        }
 
-                        //"yyyy-MM-dd HH:mm:ssXXX"
-                        //2014-11-01 18:53:00+00:00
+                            //"yyyy-MM-dd HH:mm:ssXXX"
+                            //2014-11-01 18:53:00+00:00
 
 //                        if (el.classNames().contains("story-large")) {
 //
@@ -301,8 +309,8 @@ public class ArsDataFetcherService extends Service {
 //                            }
 //                        }
 
+                        }
                     }
-                }
 
 //                List<Future<ArsEntity>> tasks = new ArrayList<Future<ArsEntity>>();
 //                for (ArsEntity ae : ents) {
@@ -310,87 +318,89 @@ public class ArsDataFetcherService extends Service {
 //                    tasks.add(NewApplication.getInstance().getThreadPoolExecutor().submit(ipc));
 //                }
 
-                List<Future<ArsEntity>> tasks = new ArrayList<Future<ArsEntity>>();
-                for(ArsEntity ae : ents){
-                    if(!itemsTreeSetRef.contains(ae) || itemLookUp.get(ae.getLink()) == null ||
-                            itemLookUp.get(ae.getLink()).getType().equals(ArsEntity.NON_IMAGE)) {
-                        ImageProcessorCallable ipc = new ImageProcessorCallable(ae, getTargetDir(getApplicationContext()), getApplicationContext(), getDb(getApplicationContext()));
-                        tasks.add(NewApplication.getInstance().getThreadPoolExecutor().submit(ipc));
-                    }
-                }
-
-                for(ArsEntity ae : ents){
-                    if(!itemsTreeSetRef.contains(ae) || itemLookUp.get(ae.getLink()) == null ||
-                            itemLookUp.get(ae.getLink()).getText() == null || itemLookUp.get(ae.getLink()).getText().isEmpty()) {
-                        TextProcessorCallable tpc = new TextProcessorCallable(ae, getTargetDir(getApplicationContext()), getApplicationContext(), getDb(getApplicationContext()));
-                        NewApplication.getInstance().getThreadPoolExecutor().submit(tpc);
-                    }
-                }
-
-//            rrwl.writeLock().tryLock(3, TimeUnit.MINUTES);
-                synchronized (itemsTreeSetRef) {
-                    for (Future<ArsEntity> future : tasks) {
-                        try {
-                            ArsEntity arsEntity = future.get(10, TimeUnit.MINUTES);
-                            if (!itemsTreeSetRef.add(arsEntity)) {
-                                Log.w(TAG, "Already contained" + arsEntity);
-                            }
-                            itemLookUp.put(arsEntity.getLink(),arsEntity);
-
-                        } catch (InterruptedException e) {
-                            Log.e(TAG, "Got an interrupt while waiting to complete", e);
-                        } catch (ExecutionException e) {
-                            Log.e(TAG, "Got an execution exception while waiting for task to complete", e);
-                        } catch (TimeoutException e) {
-                            Log.e(TAG, "It took longer than 4 minutes an image to download. So going to cancel it", e);
-                            future.cancel(true);
+                    List<Future<ArsEntity>> tasks = new ArrayList<Future<ArsEntity>>();
+                    for (ArsEntity ae : ents) {
+                        if (!itemsTreeSetRef.contains(ae) || itemLookUp.get(ae.getLink()) == null ||
+                                itemLookUp.get(ae.getLink()).getType().equals(ArsEntity.NON_IMAGE)) {
+                            ImageProcessorCallable ipc = new ImageProcessorCallable(ae, getTargetDir(getApplicationContext()), getApplicationContext(), getDb(getApplicationContext()));
+                            tasks.add(NewApplication.getInstance().getThreadPoolExecutor().submit(ipc));
                         }
                     }
-                }
+
+                    for (ArsEntity ae : ents) {
+                        if (!itemsTreeSetRef.contains(ae) || itemLookUp.get(ae.getLink()) == null ||
+                                itemLookUp.get(ae.getLink()).getText() == null || itemLookUp.get(ae.getLink()).getText().isEmpty()) {
+                            TextProcessorCallable tpc = new TextProcessorCallable(ae, getTargetDir(getApplicationContext()), getApplicationContext(), getDb(getApplicationContext()));
+                            NewApplication.getInstance().getThreadPoolExecutor().submit(tpc);
+                        }
+                    }
+
+//            rrwl.writeLock().tryLock(3, TimeUnit.MINUTES);
+                    synchronized (itemsTreeSetRef) {
+                        for (Future<ArsEntity> future : tasks) {
+                            try {
+                                ArsEntity arsEntity = future.get(10, TimeUnit.MINUTES);
+                                if (!itemsTreeSetRef.add(arsEntity)) {
+                                    Log.w(TAG, "Already contained" + arsEntity);
+                                }
+                                itemLookUp.put(arsEntity.getLink(), arsEntity);
+
+                            } catch (InterruptedException e) {
+                                Log.e(TAG, "Got an interrupt while waiting to complete", e);
+                            } catch (ExecutionException e) {
+                                Log.e(TAG, "Got an execution exception while waiting for task to complete", e);
+                            } catch (TimeoutException e) {
+                                Log.e(TAG, "It took longer than 4 minutes an image to download. So going to cancel it", e);
+                                future.cancel(true);
+                            }
+                        }
+                    }
 
 
-                if(itemsTreeSetRef.isEmpty()) {
+                    if (itemsTreeSetRef.isEmpty()) {
+                        FileInputStream fis = openFileInput("list.json");
+                        String serial = IOUtils.toString(fis);
+                        TreeSet<ArsEntity> fromJson =
+                                gson.fromJson(serial, new TypeToken<TreeSet<ArsEntity>>() {
+                                }.getType());
+                        itemsTreeSetRef = fromJson;
+                        itemLookUp = new HashMap<String, ArsEntity>();
+                        for (ArsEntity arsEntity : fromJson.descendingSet()) {
+                            itemLookUp.put(arsEntity.getLink(), arsEntity);
+                        }
+                        IOUtils.closeQuietly(fis);
+                    }
+
+                    String serial = gson.toJson(itemsTreeSetRef);
+
+                    FileOutputStream fos = openFileOutput("list.json", Context.MODE_PRIVATE);
+                    IOUtils.write(serial, fos);
+                    IOUtils.closeQuietly(fos);
+                } else {
                     FileInputStream fis = openFileInput("list.json");
                     String serial = IOUtils.toString(fis);
                     TreeSet<ArsEntity> fromJson =
-                            gson.fromJson(serial , new TypeToken<TreeSet<ArsEntity>>() {}.getType());
+                            gson.fromJson(serial, new TypeToken<TreeSet<ArsEntity>>() {
+                            }.getType());
                     itemsTreeSetRef = fromJson;
                     itemLookUp = new HashMap<String, ArsEntity>();
-                    for(ArsEntity arsEntity : fromJson.descendingSet()) {
-                        itemLookUp.put(arsEntity.getLink(),arsEntity);
+                    for (ArsEntity arsEntity : fromJson.descendingSet()) {
+                        itemLookUp.put(arsEntity.getLink(), arsEntity);
                     }
                     IOUtils.closeQuietly(fis);
                 }
-
-                String serial = gson.toJson(itemsTreeSetRef);
-
-                FileOutputStream fos = openFileOutput("list.json", Context.MODE_PRIVATE);
-                IOUtils.write(serial,fos);
-                IOUtils.closeQuietly(fos);
-            } else {
-                FileInputStream fis = openFileInput("list.json");
-                String serial = IOUtils.toString(fis);
-                TreeSet<ArsEntity> fromJson =
-                        gson.fromJson(serial , new TypeToken<TreeSet<ArsEntity>>() {}.getType());
-                itemsTreeSetRef = fromJson;
-                itemLookUp = new HashMap<String, ArsEntity>();
-                for(ArsEntity arsEntity : fromJson.descendingSet()) {
-                    itemLookUp.put(arsEntity.getLink(),arsEntity);
-                }
-                IOUtils.closeQuietly(fis);
-            }
 //            closeDb(getApplicationContext());
-            Bundle bnd = new Bundle();
-            bnd.putString("action","update");
-            Log.e("DataFetch","Creating Message");
-            Message msg = new Message();
-            msg.setData(bnd);
-            uiHandler.sendMessage(msg);
-        } catch (Exception e) {
-            Log.e(TAG,"Straight problem Parsing",e);
-            e.printStackTrace();
+                Bundle bnd = new Bundle();
+                bnd.putString("action", "update");
+                Log.e("DataFetch", "Creating Message");
+                Message msg = new Message();
+                msg.setData(bnd);
+                uiHandler.sendMessage(msg);
+            } catch (Exception e) {
+                Log.e(TAG, "Straight problem Parsing", e);
+                e.printStackTrace();
+            }
         }
-
 
 
     }

@@ -24,6 +24,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Typeface;
 import android.graphics.drawable.BitmapDrawable;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.wearable.view.CardFragment;
 import android.support.wearable.view.FragmentGridPagerAdapter;
@@ -39,13 +40,22 @@ import android.widget.TextView;
 
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.wearable.DataApi;
 import com.google.android.gms.wearable.MessageApi;
 import com.google.android.gms.wearable.Node;
+import com.google.android.gms.wearable.PutDataMapRequest;
+import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
+import com.google.gson.Gson;
+
+import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
 
 /**
@@ -289,7 +299,7 @@ public class SampleGridPagerAdapter extends FragmentGridPagerAdapter {
                     playing = false;
                     if(mGoogleApiClient != null && curNode != null && !curNode.isEmpty()) {
                         if(curNode != null && !curNode.isEmpty() && arsEntity != null && arsEntity.getLink() != null && !arsEntity.getLink().isEmpty()) {
-                            progressBar.setVisibility(View.VISIBLE);
+                            progressBar.setVisibility(View.GONE);
                             Wearable.MessageApi.sendMessage(
                                     mGoogleApiClient, curNode.get(0).getId(), "/stop", "2".getBytes()).setResultCallback(
                                     new ResultCallback<MessageApi.SendMessageResult>() {
@@ -311,6 +321,8 @@ public class SampleGridPagerAdapter extends FragmentGridPagerAdapter {
                     if(mGoogleApiClient != null && curNode != null && !curNode.isEmpty()) {
                         if(curNode != null && !curNode.isEmpty() && arsEntity != null && arsEntity.getLink() != null && !arsEntity.getLink().isEmpty()) {
                             progressBar.setVisibility(View.VISIBLE);
+                            ProgressTask pt = new ProgressTask(progressBar);
+                            pt.execute();
                             Wearable.MessageApi.sendMessage(
                                     mGoogleApiClient, curNode.get(0).getId(), "/start", arsEntity.getLink().getBytes()).setResultCallback(
                                     new ResultCallback<MessageApi.SendMessageResult>() {
@@ -329,5 +341,41 @@ public class SampleGridPagerAdapter extends FragmentGridPagerAdapter {
 
             }
         }
+
+        private class ProgressTask extends AsyncTask<Void, Void, Void> {
+//        private Context context;
+
+            ProgressBar progressBar;
+
+            public ProgressTask (ProgressBar progressBar) {
+                this.progressBar = progressBar;
+            }
+
+            @Override
+            protected Void doInBackground(Void... params) {
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                return null;
+            }
+
+            @Override
+            protected void onPostExecute(Void aVoid) {
+                super.onPostExecute(aVoid);
+                if(progressBar != null) {
+                    try {
+                        progressBar.setVisibility(View.GONE);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+
+            }
+        }
     }
+
 }
+
+

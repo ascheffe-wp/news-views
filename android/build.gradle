@@ -14,10 +14,10 @@ android {
         instrumentTest.setRoot('tests')
     }
     defaultConfig {
-        minSdkVersion 10
+        minSdkVersion 14
         targetSdkVersion 20
-        versionCode 9
-        versionName "1.6"
+        versionCode 11
+        versionName "1.6.2"
     }
     productFlavors {
     }
@@ -132,4 +132,7 @@ dependencies {
     compile 'commons-io:commons-io:2.4'
     compile 'com.android.support:support-v4:20.0.0'
     compile 'com.google.android.gms:play-services:+'
+    compile "com.splunk.mint:mint:4.0.6"
+
+    wearApp project(':wear')
 }

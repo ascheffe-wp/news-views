@@ -155,6 +155,25 @@ public class MyActivity extends Activity implements DataApi.DataListener,
         });
     }
 
+
+    public static class HideProgressBarAfterLoad extends AsyncTask<Void, Void, Void> {
+
+        @Override
+        protected void onCancelled(Void aVoid) {
+            super.onCancelled(aVoid);
+        }
+
+        @Override
+        protected void onPostExecute(Void aVoid) {
+            super.onPostExecute(aVoid);
+        }
+
+        @Override
+        protected Void doInBackground(Void... params) {
+            return null;
+        }
+    }
+
     @Override
     public void onConnected(Bundle bundle) {
         mResolvingError = false;
@@ -203,6 +222,20 @@ public class MyActivity extends Activity implements DataApi.DataListener,
     @Override
     protected void onStop() {
         if (!mResolvingError) {
+            Wearable.MessageApi.sendMessage(
+                    mGoogleApiClient, curNode.get(0).getId(), "/stop", "2".getBytes()).setResultCallback(
+                    new ResultCallback<MessageApi.SendMessageResult>() {
+                        @Override
+                        public void onResult(MessageApi.SendMessageResult sendMessageResult) {
+                            if (sendMessageResult.getStatus().isSuccess()) {
+                                Log.e(TAG, "Failed to connect to Google Api Client with status: "
+                                        + sendMessageResult.getStatus());
+                            }
+                        }
+                    }
+            );
+
+
             Wearable.DataApi.removeListener(mGoogleApiClient, this);
             Wearable.MessageApi.removeListener(mGoogleApiClient, this);
             Wearable.NodeApi.removeListener(mGoogleApiClient, this);
@@ -342,9 +375,14 @@ public class MyActivity extends Activity implements DataApi.DataListener,
     @Override
     public void onMessageReceived(MessageEvent messageEvent) {
 
+
         if (messageEvent.getPath().equals("/startedPlayback")) {
-//            Fragment cur = getFragmentManager().findFragmentById(R.id.watch_frag_id);
-//            cur.getView().findViewById(R.id.progress_id).setVisibility(View.GONE);
+            try {
+                Fragment cur = getFragmentManager().findFragmentById(R.id.watch_frag_id);
+                cur.getView().findViewById(R.id.progress_id).setVisibility(View.GONE);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
 //            sampleGridPagerAdapter.
 //            ProgressBar progressBar = (ProgressBar) view.findViewById(R.id.progress_id);
         }
