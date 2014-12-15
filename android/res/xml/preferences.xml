@@ -11,19 +11,19 @@
 
     <!--</PreferenceCategory>-->
                 
-    <PreferenceCategory
-            android:title="Content Preferences">
+    <!--<PreferenceCategory-->
+            <!--android:title="Content Preferences">-->
 
-        <ListPreference
-                android:key="content_preference"
-                android:title="Select Content Source"
-                android:summary="Select from where to get the your content from"
-                android:entries="@array/entries_list_preference"
-                android:entryValues="@array/entryvalues_list_preference"
-                android:dialogTitle="Choose Where to get your content from"
-                android:defaultValue="vice"/>
+        <!--<ListPreference-->
+                <!--android:key="content_preference"-->
+                <!--android:title="Select Content Source"-->
+                <!--android:summary="Select from where to get the your content from"-->
+                <!--android:entries="@array/entries_list_preference"-->
+                <!--android:entryValues="@array/entryvalues_list_preference"-->
+                <!--android:dialogTitle="Choose Where to get your content from"-->
+                <!--android:defaultValue="vice"/>-->
 
-    </PreferenceCategory>
+    <!--</PreferenceCategory>-->
 
     <!--<PreferenceCategory-->
             <!--android:title="@string/launch_preferences">-->

@@ -7,7 +7,7 @@ import android.database.sqlite.SQLiteOpenHelper;
 public class CacheDb extends SQLiteOpenHelper {
     public static final String Name = "CacheDb";
 
-    public static final int DB_VERSION = 2;
+    public static final int DB_VERSION = 3;
 
     private final Context _context;
 

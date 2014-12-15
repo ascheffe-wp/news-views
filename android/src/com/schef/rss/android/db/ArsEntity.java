@@ -23,9 +23,10 @@ public class ArsEntity implements Comparable, Serializable {
     public static String LAST_TOUCHED_COLUMN = "LastTouched";
     public static String PUB_DATE = "PubDate";
     public static String ARTICLE_TEXT_COLUMN = "artText";
+    public static String ARTICLE_ORDER_COLUMN = "ArticleoOrder";
 
-    public static final String[] Columns = new String[] {LINK_COLUMN, TITLE_COLUMN, IMAGE_URL_COLUMN, LOCAL_FILE_PATH_COLUMN, TYPE_COLUMN, LAST_TOUCHED_COLUMN, PUB_DATE, ARTICLE_TEXT_COLUMN};
-    public static final String[] ColumnsTypes = new String[] {"TEXT PRIMARY KEY", "TEXT", "TEXT", "TEXT", "INTEGER", "INTEGER", "INTEGER", "TEXT" };
+    public static final String[] Columns = new String[] {LINK_COLUMN, TITLE_COLUMN, IMAGE_URL_COLUMN, LOCAL_FILE_PATH_COLUMN, TYPE_COLUMN, LAST_TOUCHED_COLUMN, PUB_DATE, ARTICLE_TEXT_COLUMN, ARTICLE_ORDER_COLUMN};
+    public static final String[] ColumnsTypes = new String[] {"TEXT PRIMARY KEY", "TEXT", "TEXT", "TEXT", "INTEGER", "INTEGER", "INTEGER", "TEXT", "INTEGER" };
 
     public static ITableDescription getTableDescription() {
         return new ITableDescription() {
@@ -76,6 +77,7 @@ public class ArsEntity implements Comparable, Serializable {
     public Date lmt;
     public Date pubDate;
     public String text;
+    public int order;
 
     public ArsEntity() {
         super();
@@ -91,6 +93,7 @@ public class ArsEntity implements Comparable, Serializable {
         lmt = cursor.isNull(5) ? null : new Date(cursor.getLong(5));
         pubDate = cursor.isNull(6) ? null : new Date(cursor.getLong(6));
         text = cursor.getString(7);
+        order = cursor.getInt(8);
     }
 
     public String getTitle() {
@@ -157,6 +160,14 @@ public class ArsEntity implements Comparable, Serializable {
         this.text = text;
     }
 
+    public int getOrder() {
+        return order;
+    }
+
+    public void setOrder(int order) {
+        this.order = order;
+    }
+
     public ContentValues getContentValues() {
         ContentValues result = new ContentValues();
         result.put(LINK_COLUMN, this.getLink());
@@ -179,19 +190,24 @@ public class ArsEntity implements Comparable, Serializable {
             result.put(PUB_DATE, System.currentTimeMillis());
         }
 
+        result.put(ARTICLE_ORDER_COLUMN,this.getOrder());
+
         return result;
     }
 
     @Override
     public int compareTo(Object another) {
         ArsEntity anotherArs = (ArsEntity) another;
-        return anotherArs.getPubDate().compareTo(this.getPubDate());
+        int cmp = this.order > anotherArs.order ? +1 : this.order < anotherArs.order ? -1 : 0;
+        return cmp;
+//        return anotherArs.getPubDate().compareTo(this.getPubDate());
     }
 
     @Override
     public String toString() {
         return "ArsEntity{" +
                 "link='" + link + '\'' +
+                ", order=" + order +
                 ", title='" + title + '\'' +
                 ", imgUrl='" + imgUrl + '\'' +
                 ", localImgPath='" + localImgPath + '\'' +
@@ -218,7 +234,7 @@ public class ArsEntity implements Comparable, Serializable {
             return false;
         if (title != null ? !title.equals(arsEntity.title) : arsEntity.title != null) return false;
         if (type != null ? !type.equals(arsEntity.type) : arsEntity.type != null) return false;
-
+        if (order != arsEntity.order) return false;
         return true;
     }
 
@@ -231,6 +247,7 @@ public class ArsEntity implements Comparable, Serializable {
         result = 31 * result + (type != null ? type.hashCode() : 0);
         result = 31 * result + (lmt != null ? lmt.hashCode() : 0);
         result = 31 * result + (pubDate != null ? pubDate.hashCode() : 0);
+        result = 31 * result + (order);
         return result;
     }
 
@@ -243,6 +260,7 @@ public class ArsEntity implements Comparable, Serializable {
         this.setImgUrl(arsEntity.getImgUrl());
         this.setLocalImgPath(arsEntity.getLocalImgPath());
         this.setType(arsEntity.getType());
+        this.setOrder(arsEntity.getOrder());
         return this;
     }
 }

@@ -18,9 +18,11 @@ import android.os.Message;
 import android.util.Log;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import com.schef.rss.android.db.ArsEntity;
 import com.schef.rss.android.db.CacheDb;
+import com.schef.rss.android.db.DateTimeDeserializer;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
@@ -82,6 +84,8 @@ public class ArsDataFetcherService extends Service {
     private TreeSet<ArsEntity> itemsTreeSetRef;
     private HashMap<String,ArsEntity> itemLookUp = new HashMap<String,ArsEntity>();
 
+    private static String conentSource = "http://www.evilcorgi.com/contentservice/site/vic";
+
     /**
      * Class used for the client Binder.  Because we know this service always
      * runs in the same process as its clients, we don't need to deal with IPC.
@@ -130,9 +134,149 @@ public class ArsDataFetcherService extends Service {
 
         }
     };
-
-
     public void parse() {
+        parse(false);
+    }
+
+    public void parse(boolean clean) {
+        synchronized (conentSource) {
+            try {
+                ConnectivityManager cm = (ConnectivityManager) getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+                NetworkInfo ni = cm.getActiveNetworkInfo();
+
+                Gson gson = new GsonBuilder()
+                        .registerTypeAdapter(Date.class, new DateTimeDeserializer(DateFormat.DEFAULT, DateFormat.DEFAULT))
+                        .serializeNulls()
+                        .create();
+
+
+                if (ni != null && ni.isConnected()) {
+                    //
+                    try {
+                        URL url = new URL("https://s3.amazonaws.com/arsappdir/config.json");
+                        URLConnection connection = url.openConnection();
+                        HttpURLConnection httpConnection = (HttpURLConnection) connection;
+
+                        if (httpConnection.getResponseCode() == HttpURLConnection.HTTP_OK) {
+                            String configJson = IOUtils.toString(httpConnection.getInputStream());
+                            Log.w("Config", configJson);
+                            ConfigPojo cp = gson.fromJson(configJson, ConfigPojo.class);
+
+                            FileOutputStream fos = openFileOutput("config.json", Context.MODE_PRIVATE);
+                            IOUtils.write(configJson, fos);
+                            IOUtils.closeQuietly(fos);
+
+                            NewApplication.getInstance().setConfigPojo(cp);
+                            httpConnection.disconnect();
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error Getting config", e);
+                    }
+
+                    // Connect to the web site
+                    cleanStorage(getDb(getApplicationContext()));
+
+//                    URL url = new URL("http://www.evilcorgi.com/contentservice/site/nyt");
+//                    HttpURLConnection con = (HttpURLConnection)url.openConnection();
+//                    con.getConnectTimeout();
+//                    InputStream in = con.getInputStream();
+//                    String encoding = con.getContentEncoding();
+//                    encoding = encoding == null ? "UTF-8" : encoding;
+//                    String body = IOUtils.toString(in, encoding);
+                    String srcUrl = Utils.getPaper(getApplicationContext());
+
+                    String body = downloadNewFile(srcUrl,4);
+
+                    ArsEntity[] ents = gson.fromJson(body, ArsEntity[].class);
+
+                    if(clean) {
+                        synchronized (itemsTreeSetRef) {
+                            itemsTreeSetRef.clear();
+                        }
+                    }
+
+                    List<Future<ArsEntity>> tasks = new ArrayList<Future<ArsEntity>>();
+                    for (ArsEntity ae : ents) {
+                        if (!itemsTreeSetRef.contains(ae) || itemLookUp.get(ae.getLink()) == null ||
+                                itemLookUp.get(ae.getLink()).getType().equals(ArsEntity.NON_IMAGE)) {
+                            ImageProcessorCallable ipc = new ImageProcessorCallable(ae, getTargetDir(getApplicationContext()), getApplicationContext(), getDb(getApplicationContext()));
+                            tasks.add(NewApplication.getInstance().getThreadPoolExecutor().submit(ipc));
+                        }
+                    }
+
+
+//            rrwl.writeLock().tryLock(3, TimeUnit.MINUTES);
+                    synchronized (itemsTreeSetRef) {
+                        for (Future<ArsEntity> future : tasks) {
+                            try {
+                                ArsEntity arsEntity = future.get(10, TimeUnit.MINUTES);
+                                if (!itemsTreeSetRef.add(arsEntity)) {
+                                    Log.w(TAG, "Already contained" + arsEntity);
+                                }
+                                itemLookUp.put(arsEntity.getLink(), arsEntity);
+
+                            } catch (InterruptedException e) {
+                                Log.e(TAG, "Got an interrupt while waiting to complete", e);
+                            } catch (ExecutionException e) {
+                                Log.e(TAG, "Got an execution exception while waiting for task to complete", e);
+                            } catch (TimeoutException e) {
+                                Log.e(TAG, "It took longer than 4 minutes an image to download. So going to cancel it", e);
+                                future.cancel(true);
+                            }
+                        }
+                    }
+
+
+                    if (itemsTreeSetRef.isEmpty()) {
+                        FileInputStream fis = openFileInput("list.json");
+                        String serial = IOUtils.toString(fis);
+                        TreeSet<ArsEntity> fromJson =
+                                gson.fromJson(serial, new TypeToken<TreeSet<ArsEntity>>() {
+                                }.getType());
+                        itemsTreeSetRef = fromJson;
+                        itemLookUp = new HashMap<String, ArsEntity>();
+                        for (ArsEntity arsEntity : fromJson.descendingSet()) {
+                            itemLookUp.put(arsEntity.getLink(), arsEntity);
+                        }
+                        IOUtils.closeQuietly(fis);
+                    }
+
+                    String serial = gson.toJson(itemsTreeSetRef);
+
+                    FileOutputStream fos = openFileOutput("list.json", Context.MODE_PRIVATE);
+                    IOUtils.write(serial, fos);
+                    IOUtils.closeQuietly(fos);
+                } else {
+                    FileInputStream fis = openFileInput("list.json");
+                    String serial = IOUtils.toString(fis);
+                    TreeSet<ArsEntity> fromJson =
+                            gson.fromJson(serial, new TypeToken<TreeSet<ArsEntity>>() {
+                            }.getType());
+                    itemsTreeSetRef = fromJson;
+                    itemLookUp = new HashMap<String, ArsEntity>();
+                    for (ArsEntity arsEntity : fromJson.descendingSet()) {
+                        itemLookUp.put(arsEntity.getLink(), arsEntity);
+                    }
+                    IOUtils.closeQuietly(fis);
+                }
+//            closeDb(getApplicationContext());
+                Bundle bnd = new Bundle();
+                bnd.putString("action", "update");
+                Log.e("DataFetch", "Creating Message");
+                Message msg = new Message();
+                msg.setData(bnd);
+                uiHandler.sendMessage(msg);
+            } catch (Exception e) {
+                Log.e(TAG, "Straight problem Parsing", e);
+                e.printStackTrace();
+            }
+        }
+
+
+    }
+
+
+    public void parse3() {
         synchronized (FILES_ROOT) {
             try {
                 ConnectivityManager cm = (ConnectivityManager) getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
@@ -838,5 +982,52 @@ public class ArsDataFetcherService extends Service {
 
     public void setItemLookUp(HashMap<String, ArsEntity> itemLookUp) {
         this.itemLookUp = itemLookUp;
+    }
+
+
+    public static String getConentSource() {
+        return conentSource;
+    }
+
+    public static void setConentSource(String conentSource) {
+        ArsDataFetcherService.conentSource = conentSource;
+    }
+
+    public String downloadNewFile(String downloadUrl, int retries) {
+        String result = null;
+        HttpURLConnection httpConnection = null;
+        for(int count = 0; count < retries; count++) {
+            try {
+                URL url = new URL(downloadUrl);
+                URLConnection connection = url.openConnection();
+                httpConnection = (HttpURLConnection) connection;
+                httpConnection.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*");
+
+                if (httpConnection.getResponseCode() >= 200 && httpConnection.getResponseCode() <= 400) {
+                    String encoding = httpConnection.getContentEncoding();
+                    encoding = encoding == null ? "UTF-8" : encoding;
+                    result = IOUtils.toString(httpConnection.getInputStream(), encoding);
+                    if(result == null) {
+                        Log.e(TAG, "Returning null [" + downloadUrl + "]" );
+                    }
+                    break;
+                } else {
+                    Log.e(TAG, "Got bad response [" + downloadUrl + "] [" +httpConnection.getResponseCode() + "]" );
+                }
+            } catch (MalformedURLException me) {
+                Log.e(TAG, "Malformed Url requested [" + downloadUrl + "]", me);
+            } catch (Exception ie) {
+                Log.e(TAG, "Error occured while fetching [" + downloadUrl + "]", ie);
+            } finally {
+                if (httpConnection != null) {
+                    try {
+                        httpConnection.disconnect();
+                    } catch (Exception e) {
+                        //Nothing to do, just don't crash app
+                    }
+                }
+            }
+        }
+        return result;
     }
 }

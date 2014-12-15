@@ -123,24 +123,7 @@ public class NewApplication extends Application {
             mService.setItemsTreeSetRef(itemsTreeSet);
             Log.e("ServiceConnected","Called Runnable");
             mBound = true;
-            new Thread( new Runnable() {
-                @Override
-                public void run() {
-                    Log.e("Handler","Called Parse");
-                    ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-                    NetworkInfo wifi = cm.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
-                    int netType = getNetworkClass(getApplicationContext());
-
-                    if (wifi != null && wifi.isConnectedOrConnecting() || (netType > 0 && netType != -1)) {
-                            mService.parse();
-                    } else {
-
-                    }
-
-
-
-                }
-            }).start();
+            performParse(false);
 
         }
 
@@ -149,6 +132,24 @@ public class NewApplication extends Application {
             mBound = false;
         }
     };
+
+    public void performParse (final boolean clean) {
+        new Thread( new Runnable() {
+            @Override
+            public void run() {
+                Log.e("Handler","Called Parse");
+                ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+                NetworkInfo wifi = cm.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
+                int netType = getNetworkClass(getApplicationContext());
+
+                if (mService != null && (wifi != null && wifi.isConnectedOrConnecting() || (netType > 0 && netType != -1))) {
+                    mService.parse(clean);
+                } else {
+
+                }
+            }
+        }).start();
+    }
 
     public static int NET2G = 1;
     public static int NET3G = 2;

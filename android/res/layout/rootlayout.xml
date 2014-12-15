@@ -27,118 +27,133 @@
         android:id="@+id/content_frame"
         android:layout_width="fill_parent"
         android:layout_height="fill_parent"
-        android:visibility="visible">
+        android:visibility="visible"></FrameLayout>
 
-    </FrameLayout>
+    <!--<ListView-->
+    <!--android:layout_width="250dp"-->
+    <!--android:layout_height="wrap_content"-->
+    <!--android:id="@+id/listView"-->
+    <!--android:background="#ff272628"-->
+    <!--android:visibility="gone"-->
+    <!--tools:listitem="@android:layout/simple_list_item_checked"-->
+    <!--android:layout_alignParentTop="true"-->
+    <!--android:layout_alignParentLeft="true">-->
 
-    <ListView
-        android:layout_width="250dp"
-        android:layout_height="wrap_content"
-        android:id="@+id/listView"
-        android:layout_gravity="top|right"
-        android:layout_alignParentEnd="false"
-        android:background="#ff272628"
-        android:visibility="gone"
-        tools:listitem="@android:layout/simple_list_item_checked"
-        android:layout_alignParentTop="true"
-        android:layout_alignParentRight="true">
+    <!--</ListView>-->
 
-    </ListView>
 
     <ImageView
-        android:layout_width="90dp"
-        android:layout_height="60dp"
         android:id="@+id/handImage"
-        android:layout_gravity="left|top"
-        android:layout_alignParentTop="true"
+        android:layout_width="90dp"
+        android:layout_height="60dp"
         android:layout_alignParentRight="true"
-        android:background="@drawable/checked"
-        android:src="@drawable/whand"
-        android:clickable="true"
-        android:layout_alignParentEnd="false"
-        android:focusable="false"
+        android:layout_alignParentTop="true"
+        android:layout_gravity="left|top"
         android:adjustViewBounds="true"
-        android:baselineAlignBottom="false" />
+        android:alpha=".57"
+        android:background="@drawable/checked"
+        android:baselineAlignBottom="false"
+        android:clickable="true"
+        android:focusable="false"
+        android:src="@drawable/whand" />
 
 
     <ImageView
+        android:id="@+id/tmpImg"
         android:layout_width="90dp"
         android:layout_height="60dp"
-        android:id="@+id/tmpImg"
-        android:layout_gravity="left|top"
-        android:layout_alignParentTop="true"
         android:layout_alignParentLeft="true"
+        android:layout_alignParentTop="true"
+        android:layout_gravity="left|top"
+        android:adjustViewBounds="true"
+        android:alpha=".5"
         android:background="#008"
+        android:baselineAlignBottom="false"
         android:clickable="true"
         android:focusable="false"
-        android:adjustViewBounds="true"
-        android:visibility="gone"
-        android:baselineAlignBottom="false" />
+        android:visibility="gone" />
 
-    <TextureView
-        android:id="@+id/surface"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone"/>
+    <ImageView
+        android:id="@+id/settingsView"
+        android:layout_width="45dp"
+        android:layout_height="45dp"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentTop="true"
+        android:layout_marginLeft="10dp"
+        android:layout_marginTop="10dp"
+        android:adjustViewBounds="true"
+        android:alpha=".5"
+        android:background="@drawable/pignon"
+        android:clickable="true"
+        android:cropToPadding="false"
+        android:focusable="false"
+        android:longClickable="true"
+        android:scaleType="centerCrop" />
+
+    <!--<TextureView-->
+    <!--android:id="@+id/surface"-->
+    <!--android:layout_width="match_parent"-->
+    <!--android:layout_height="match_parent"-->
+    <!--android:visibility="gone"/>-->
     <!--<fragment-->
-        <!--android:layout_width="575dp"-->
-        <!--android:layout_height="wrap_content"-->
-        <!--android:name="com.schef.rss.android.UserSettingsFragment"-->
-        <!--android:id="@+id/fragment"-->
-        <!--android:layout_gravity="right|center_vertical"-->
-        <!--android:layout_alignParentRight="true" />-->
+    <!--android:layout_width="575dp"-->
+    <!--android:layout_height="wrap_content"-->
+    <!--android:name="com.schef.rss.android.UserSettingsFragment"-->
+    <!--android:id="@+id/fragment"-->
+    <!--android:layout_gravity="right|center_vertical"-->
+    <!--android:layout_alignParentRight="true" />-->
 
     <!--<LinearLayout-->
-        <!--android:orientation="horizontal"-->
-        <!--android:layout_width="wrap_content"-->
-        <!--android:layout_height="wrap_content"-->
-        <!--android:layout_alignParentStart="false"-->
-        <!--android:layout_alignParentBottom="true"-->
-        <!--android:layout_alignParentRight="true"-->
-        <!--android:layout_alignParentTop="false"-->
-        <!--android:paddingRight="10dp"-->
-        <!--android:paddingBottom="10dp"-->
-        <!-->-->
+    <!--android:orientation="horizontal"-->
+    <!--android:layout_width="wrap_content"-->
+    <!--android:layout_height="wrap_content"-->
+    <!--android:layout_alignParentStart="false"-->
+    <!--android:layout_alignParentBottom="true"-->
+    <!--android:layout_alignParentRight="true"-->
+    <!--android:layout_alignParentTop="false"-->
+    <!--android:paddingRight="10dp"-->
+    <!--android:paddingBottom="10dp"-->
+    <!-->-->
 
-        <!--<ImageView-->
-            <!--android:layout_width="wrap_content"-->
-            <!--android:layout_height="60dp"-->
-            <!--android:id="@+id/upTurnImage"-->
-            <!--android:layout_gravity="left|top"-->
-            <!--android:layout_alignParentTop="false"-->
-            <!--android:layout_alignParentRight="true"-->
-            <!--android:src="@drawable/downturn"-->
-            <!--android:clickable="true"-->
-            <!--android:layout_alignParentEnd="false"-->
-            <!--android:focusable="false"-->
-            <!--android:adjustViewBounds="true"-->
-            <!--android:layout_alignParentBottom="true"-->
-            <!--android:paddingRight="5dp" />-->
+    <!--<ImageView-->
+    <!--android:layout_width="wrap_content"-->
+    <!--android:layout_height="60dp"-->
+    <!--android:id="@+id/upTurnImage"-->
+    <!--android:layout_gravity="left|top"-->
+    <!--android:layout_alignParentTop="false"-->
+    <!--android:layout_alignParentRight="true"-->
+    <!--android:src="@drawable/downturn"-->
+    <!--android:clickable="true"-->
+    <!--android:layout_alignParentEnd="false"-->
+    <!--android:focusable="false"-->
+    <!--android:adjustViewBounds="true"-->
+    <!--android:layout_alignParentBottom="true"-->
+    <!--android:paddingRight="5dp" />-->
 
-        <!--<ImageView-->
-            <!--android:layout_width="wrap_content"-->
-            <!--android:layout_height="60dp"-->
-            <!--android:id="@+id/downTurnImage"-->
-            <!--android:layout_gravity="left|top"-->
-            <!--android:layout_alignParentTop="false"-->
-            <!--android:layout_alignParentRight="true"-->
-            <!--android:src="@drawable/upturn"-->
-            <!--android:clickable="true"-->
-            <!--android:layout_alignParentEnd="false"-->
-            <!--android:focusable="false"-->
-            <!--android:adjustViewBounds="true"-->
-            <!--android:layout_alignParentBottom="true"-->
-            <!--android:paddingLeft="5dp" />-->
+    <!--<ImageView-->
+    <!--android:layout_width="wrap_content"-->
+    <!--android:layout_height="60dp"-->
+    <!--android:id="@+id/downTurnImage"-->
+    <!--android:layout_gravity="left|top"-->
+    <!--android:layout_alignParentTop="false"-->
+    <!--android:layout_alignParentRight="true"-->
+    <!--android:src="@drawable/upturn"-->
+    <!--android:clickable="true"-->
+    <!--android:layout_alignParentEnd="false"-->
+    <!--android:focusable="false"-->
+    <!--android:adjustViewBounds="true"-->
+    <!--android:layout_alignParentBottom="true"-->
+    <!--android:paddingLeft="5dp" />-->
     <!--</LinearLayout>-->
 
     <!--<ImageView-->
-        <!--android:id="@+id/imageView2"-->
-        <!--android:layout_width="wrap_content"-->
-        <!--android:layout_height="wrap_content"-->
-        <!--android:layout_alignParentLeft="true"-->
-        <!--android:layout_alignParentTop="true"-->
-        <!--android:background="@drawable/ic_drawer"-->
-        <!--android:baselineAlignBottom="false" />-->
+    <!--android:id="@+id/imageView2"-->
+    <!--android:layout_width="wrap_content"-->
+    <!--android:layout_height="wrap_content"-->
+    <!--android:layout_alignParentLeft="true"-->
+    <!--android:layout_alignParentTop="true"-->
+    <!--android:background="@drawable/ic_drawer"-->
+    <!--android:baselineAlignBottom="false" />-->
 
 
 </RelativeLayout>

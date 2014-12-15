@@ -7,17 +7,17 @@ import com.badlogic.gdx.assets.AssetDescriptor;
 import com.badlogic.gdx.assets.AssetManager;
 
 import android.content.Intent;
+import android.content.res.AssetFileDescriptor;
 import android.graphics.SurfaceTexture;
+import android.media.MediaPlayer;
 import android.net.Uri;
 import android.opengl.GLES11Ext;
-import android.opengl.GLES20;
-import android.opengl.GLUtils;
 import android.util.Log;
+import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
+import android.widget.RelativeLayout;
 
-import com.badlogic.gdx.graphics.g3d.utils.DefaultShaderProvider;
-import com.badlogic.gdx.utils.BufferUtils;
 import com.schef.rss.android.db.ArsEntity;
 import com.badlogic.gdx.ApplicationListener;
 import com.badlogic.gdx.Gdx;
@@ -41,8 +41,6 @@ import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.graphics.g3d.attributes.BlendingAttribute;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.attributes.TextureAttribute;
-import com.badlogic.gdx.graphics.g3d.decals.GroupStrategy;
-import com.badlogic.gdx.graphics.g3d.model.MeshPart;
 import com.badlogic.gdx.graphics.g3d.utils.CameraInputController;
 import com.badlogic.gdx.graphics.g3d.utils.DefaultTextureBinder;
 import com.badlogic.gdx.graphics.g3d.utils.MeshBuilder;
@@ -53,14 +51,12 @@ import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.input.GestureDetector;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
-import com.badlogic.gdx.math.collision.BoundingBox;
 import com.badlogic.gdx.math.collision.Ray;
 import com.badlogic.gdx.utils.Array;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
-import java.io.Serializable;
-import java.nio.IntBuffer;
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -74,9 +70,9 @@ import java.util.concurrent.CountDownLatch;
 /**
  * Created by scheffela on 7/6/14.
  */
-public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailableListener {
+public class Ars3d implements ApplicationListener /*, SurfaceTexture.OnFrameAvailableListener */ {
 
-    AndroidLauncher parent;
+    private AndroidLauncher parent;
 
     public Environment environment;
     public PerspectiveCamera cam;
@@ -115,10 +111,12 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
 
     private ModelInstance arrow = null;
 
-    AssetManager manager;
+    private AssetManager manager;
 
-    Float startPosition;
-    Float startRotation;
+    private Float startPosition;
+    private Float startRotation;
+
+    private List<SurfaceBean> sbBeans = new ArrayList<SurfaceBean>();
 
     public static volatile boolean textureHeadlines = true;
 
@@ -145,16 +143,11 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
         gson = new GsonBuilder().create();
 
         manager.load(new AssetDescriptor(Gdx.files.internal("backg.jpg"), Texture.class));
-//        manager.load(new AssetDescriptor(Gdx.files.internal("123750890.jpg"), Texture.class));
-//        manager.load(new AssetDescriptor(Gdx.files.internal("brankic1979-icon-set.jpg"), Texture.class));
         manager.load(new AssetDescriptor(Gdx.files.internal("earthmoon.jpg"), Texture.class));
+        manager.load(new AssetDescriptor(Gdx.files.internal("tbsign1.png"), Texture.class));
         manager.update();
         manager.finishLoading();
 
-//        img4 = manager.get("backg.jpg", Texture.class);
-//        img5 = manager.get("123750890.jpg", Texture.class);
-//        img6 = manager.get("brankic1979-icon-set.jpg", Texture.class);
-//        image = manager.get("earthmoon.jpg", Texture.class);
 
         blendingAttribute = new BlendingAttribute(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA, 1.0f);
         blendingAttribute2 = new BlendingAttribute(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA, 0.6f);
@@ -172,16 +165,6 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
 
         modelBatch2 = new ModelBatch(new RenderContext(new DefaultTextureBinder(DefaultTextureBinder.ROUNDROBIN, 4, 4)),
                 asp2,null);
-
-//        DefaultShaderProvider asp3 = new DefaultShaderProvider(Gdx.files.internal("default.vertex.glsl"),Gdx.files.internal("default.fragment4.glsl"));
-//
-//        modelBatch3 = new ModelBatch(new RenderContext(new DefaultTextureBinder(DefaultTextureBinder.ROUNDROBIN, 13, 1)),
-//                asp3,null);
-
-//        modelBatch2 = new ModelBatch(new RenderContext(new DefaultTextureBinder(DefaultTextureBinder.ROUNDROBIN, 4)),
-//                new DefaultShaderProvider(Gdx.files.internal("default.vertex.glsl"),Gdx.files.internal("default.fragment.glsl")),null);
-//        modelBatch3 = new ModelBatch(new RenderContext(new DefaultTextureBinder(DefaultTextureBinder.ROUNDROBIN, 4)),
-//                new DefaultShaderProvider(Gdx.files.internal("default.vertex.glsl"),Gdx.files.internal("default.fragment2.glsl")),null);
 
         cam = new PerspectiveCamera(67f, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         cam.position.set(0.0f, 0.0f, -5.6f);
@@ -201,7 +184,6 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
 
         ModelBuilder mb = new ModelBuilder();
         Model model = null;
-        Model textModel = null;
         ArticleInstance instance2 = null;
 
         spriteBatch = new SpriteBatch(1);
@@ -217,10 +199,6 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
         font = new BitmapFont(Gdx.files.internal("txt3.fnt"), new TextureRegion(textTexture), false);
         pm = new Pixmap(Gdx.files.internal("txt3.png"));
         FileHandle fh = Gdx.files.internal("objs2.json");
-
-//        ShaderProgram sp = new ShaderProgram(Gdx.files.internal("default.vertex.glsl"),Gdx.files.internal("default.fragment2.glsl"));
-
-        boolean set = true;
 
         ImagePane[] ips = gson.fromJson(fh.reader(), ImagePane[].class);
         for (ImagePane ip : ips) {
@@ -261,31 +239,6 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
                 }
 
                 model = mb.end();
-
-
-//                if(set) {
-//                    mb.begin();
-//                    Node nd = mb.node();
-//                    nd.id = "text";
-//                    GlyphUnit gu = textToTexture2("This is a test. Just a test no need to get worried or anything");
-//                    float pixelToTextSize = 360f / (float) gu.totalWidth;
-//                    float pixelToTextHeight = 4f / 143f;
-//                    float degreeOffset = ip.uFrom;
-//                    int count = 0;
-//                    for (BitmapFont.Glyph glyph : gu.glyphs) {
-//                        meshBuilder = new MeshBuilder();
-//                        float degreeToEndOffset = (glyph.width * pixelToTextSize) + degreeOffset;
-//                        TextureRegion tr = new TextureRegion(textTexture, glyph.srcX, glyph.srcY, glyph.width, glyph.height);
-//                        meshBuilder.begin(VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, GL20.GL_TRIANGLES);
-//                        meshBuilder.sphere(6.115f, 6.115f, 6.115f, 4, 2, degreeOffset, degreeToEndOffset, ip.vTo + (Math.abs(glyph.height + glyph.yoffset) * pixelToTextHeight), ip.vTo + ((Math.abs(glyph.height + glyph.yoffset) + glyph.height) * pixelToTextHeight));
-//                        mesh1 = meshBuilder.end();
-//                        mb.part("text" + count, mesh1, GL20.GL_TRIANGLES, new Material(blendingAttribute, TextureAttribute.createDiffuse(tr)));
-//                        degreeOffset = (glyph.xadvance * pixelToTextSize) + degreeOffset;
-//                    }
-//                    textModel = mb.end();
-//                    set = false;
-//                }
-
             } else {
                 mb.begin();
                 MeshPartBuilder mpb = mb.part("cylinderA" + count, GL20.GL_TRIANGLES,
@@ -323,7 +276,6 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
                 model = mb.end();
             }
             instance2 = new ArticleInstance(model, ip.center, ip.dimensions, ip.radius, ip.bounds, ip.row, ip.col, 30l, count * 400);
-//            instance2.textModel = new ModelInstance(textModel);
             if(textureHeadlines) {
                 instance2.textureHeadline = textureHeadlines;
                 instance2.startSpinner();
@@ -455,44 +407,24 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
         }
 
 
-
-
-        // Generate the actual texture
-//        Gdx.gl.glActiveTexture(Gdx.gl20.GL_TEXTURE12);
-//        textures.position(0);
-//        textures.limit(textures.capacity());
-//        Gdx.gl.glGenTextures(1, textures);
-//        checkGlError("Texture generate");
+//        videoTexture = new Texture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, new VideoTextureData());
 //
-//        Gdx.gl.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, textures.get(0));
-//        checkGlError("Texture bind");
-//        Gdx.gl.glDisable(Gdx.gl20.GL_TEXTURE_2D);
-        videoTexture = new Texture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, new VideoTextureData());
-
-        surfaceTexture = new SurfaceTexture(videoTexture.getGlHandle2());
-        surfaceTexture.setOnFrameAvailableListener(this);
-
-        parent.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                ((TextureView) parent.findViewById(R.id.surface)).setVisibility(View.VISIBLE);
-            }
-        });
+//        surfaceTexture = new SurfaceTexture(videoTexture.getGlHandle2());
+//        surfaceTexture.setOnFrameAvailableListener(this);
+//
+//        parent.runOnUiThread(new Runnable() {
+//            @Override
+//            public void run() {
+//                ((TextureView) parent.findViewById(R.id.surface)).setVisibility(View.VISIBLE);
+//            }
+//        });
 
     }
 
-    public void checkGlError(String op)
-    {
-        int error;
-        while ((error = GLES20.glGetError()) != GLES20.GL_NO_ERROR) {
-            Log.e("SurfaceTest", op + ": glError " + GLUtils.getEGLErrorString(error));
-        }
-    }
+//    public SurfaceTexture surfaceTexture;
+//    public boolean frameAvailable;
 
-    public SurfaceTexture surfaceTexture;
-    public boolean frameAvailable;
-
-    public Texture videoTexture;
+//    public Texture videoTexture;
 
     float[] all2 = new float[10000];
     private Pixmap pm;
@@ -501,32 +433,20 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
 
     public static boolean incenter = true;
     public static volatile boolean resetBlending = true;
-    public static boolean visibleBlendingUpdate = true;
     public Float prevCol = 8f;
-//    boolean orientationChange = false;
 
     ModelBatch modelBatchInternal = null;
     float visCol;
     @Override
     public void render() {
 
-
-        synchronized (this)
-        {
-            if (frameAvailable)
-            {
-//                Gdx.gl.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, textures.get(0));
-                surfaceTexture.updateTexImage();
-//                surfaceTexture.getTransformMatrix(videoTextureTransform);
-                frameAvailable = false;
-            }
-
-        }
-
-
         Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
         Gdx.gl.glClearColor(1.0f, 0.0f, 0.0f, 0.0f);
+
+        for (SurfaceBean sb : sbBeans) {
+            sb.updateTextures();
+        }
 
         try {
             if (imageUpdates) {
@@ -541,212 +461,26 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
         camController.update();
         Gdx.gl.glDisable(GL20.GL_CULL_FACE);
 
-//        Gdx.gl.glActiveTexture(Gdx.gl20.GL_TEXTURE12);
-//        Gdx.gl.glBindTexture( Gdx.gl.GL_TEXTURE12, textures.get(0));
 
-
-        //x = a+r\,\cos t,\,
-//        Double r = Math.sqrt((cam.position.x*cam.position.x) + (cam.position.y*cam.position.y));
-//        double xz = cam.position.x/r;
-//        double angel = Math.acos(xz);
-//        Log.e("Sphere","Inside Sphere [" + angel + "]");
-
-//        Log.e("Sphere","Inside Sphere [" + cam.position + "]");
         float distToCenter = cam.position.dst2(0f, 0f, 0f);
-//        float distToCenter2 = cam.position.dst2(0f,0f,0f);
-//        Log.e("Sphere","[" + cam.position.toString() + "] " +" [" + Math.sqrt(distToCenter) + "] " + " [" + Math.sqrt(distToCenter2) + "]");
         if (distToCenter < 9.0f && !incenter) {
             incenter = true;
             modelBatchInternal = modelBatch2;
-//            Log.e("Sphere","Inside Sphere [" + distToCenter + "]");
-//            orientationChange = true;
         } else if (distToCenter > 9.0f && incenter) {
             incenter = false;
             modelBatchInternal = modelBatch;
-//            Log.e("Sphere","Outside Sphere [" + distToCenter + "]");
-//            orientationChange = true;
         }
 
-//        Gdx.gl.glDisable(Gdx.gl.GL_TEXTURE_2D);
         spriteBatch.begin();
         spriteBatch.draw(manager.get(Gdx.files.internal("earthmoon.jpg").path(), Texture.class), 0f, 0f, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         spriteBatch.end();
-//        Gdx.gl.glEnable(Gdx.gl.GL_TEXTURE_2D);
 
         if(modelBatchInternal != null) {
             modelBatchInternal.begin(cam);
 
-
             Gdx.graphics.getGL20().glEnable(GL20.GL_BLEND);
 
-            List<ArticleInstance> row1 = rows.get(1.0f);
-
-
-            for (ArticleInstance ai : row1) {
-                if (ai.update) {
-                    Material material = ai.materials.get(0);
-                    if (ai.arsEntity.localImgPath != null) {
-                        if (manager.isLoaded(Gdx.files.absolute(ai.arsEntity.localImgPath).path())) {
-                            material.set(TextureAttribute.createDiffuse(manager.get(new AssetDescriptor<Texture>(Gdx.files.absolute(ai.arsEntity.localImgPath).path(), Texture.class))));
-                            if(ai.textureHeadline) {
-                                material = ai.materials.get(1);
-                                Material material2 = ai.materials.get(2);
-                                if (ai.arsEntity.title != null) {
-                                    Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
-                                    if (tmpTexture2 != null /*&& ai.col == visCol*/) {
-                                        if(ai.col == visCol) {
-                                            material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
-                                            material.id = "st";
-                                            material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
-                                            material2.id = "st";
-                                        } else {
-                                            material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
-                                            material.id = "st";
-                                            material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
-                                            material2.id = "st";
-                                        }
-                                    }
-                                }
-                            }
-                            ai.update = false;
-                        }
-                    } else {
-                        material.set(TextureAttribute.createDiffuse(manager.get(Gdx.files.internal("backg.jpg").path(), Texture.class)));
-                        material = ai.materials.get(1);
-                        Material material2 = ai.materials.get(2);
-                        if (ai.arsEntity.title != null) {
-                            Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
-                            if (tmpTexture2 != null /*&& ai.col == visCol && ai.textureHeadline*/) {
-                                if(ai.col == visCol) {
-                                    material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
-                                    material.id = "st";
-                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
-                                    material2.id = "st";
-                                } else {
-                                    material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
-                                    material.id = "st";
-                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
-                                    material2.id = "st";
-                                }
-                            }
-                        }
-                        ai.update = false;
-                    }
-
-                }
-            }
-
-            List<ArticleInstance> row2 = rows.get(2.0f);
-
-            for (ArticleInstance ai : row2) {
-                if (ai.update) {
-                    Material material = ai.materials.get(0);
-                    if (ai.arsEntity.localImgPath != null) {
-                        if (manager.isLoaded(Gdx.files.absolute(ai.arsEntity.localImgPath).path())) {
-                            material.set(TextureAttribute.createDiffuse(manager.get(new AssetDescriptor<Texture>(Gdx.files.absolute(ai.arsEntity.localImgPath).path(), Texture.class))));
-                            if(ai.textureHeadline) {
-                                material = ai.materials.get(1);
-                                Material material2 = ai.materials.get(2);
-                                if (ai.arsEntity.title != null) {
-                                    Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
-                                    if (tmpTexture2 != null /*&& ai.col == visCol*/) {
-                                        if(ai.col == visCol) {
-                                            material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
-                                            material.id = "st";
-                                            material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
-                                            material2.id = "st";
-                                        } else {
-                                            material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
-                                            material.id = "st";
-                                            material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
-                                            material2.id = "st";
-                                        }
-                                    }
-                                }
-                            }
-                            ai.update = false;
-                        }
-                    } else {
-                        material.set(TextureAttribute.createDiffuse(manager.get(Gdx.files.internal("backg.jpg").path(), Texture.class)));
-                        material = ai.materials.get(1);
-                        Material material2 = ai.materials.get(2);
-                        if (ai.arsEntity.title != null /*&& ai.col == visCol && ai.textureHeadline*/) {
-                            Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
-                            if (tmpTexture2 != null) {
-                                if(ai.col == visCol) {
-                                    material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
-                                    material.id = "st";
-                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
-                                    material2.id = "st";
-                                } else {
-                                    material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
-                                    material.id = "st";
-                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
-                                    material2.id = "st";
-                                }
-                            }
-                        }
-                        ai.update = false;
-                    }
-
-                }
-            }
-
-            List<ArticleInstance> row0 = rows.get(0.0f);
-
-            for (ArticleInstance ai : row0) {
-                if (ai.update) {
-                    Material material = ai.materials.get(0);
-                    if (ai.arsEntity.localImgPath != null) {
-                        if (manager.isLoaded(Gdx.files.absolute(ai.arsEntity.localImgPath).path())) {
-                            material.set(TextureAttribute.createDiffuse(manager.get(new AssetDescriptor<Texture>(Gdx.files.absolute(ai.arsEntity.localImgPath).path(), Texture.class))));
-                            if(ai.textureHeadline) {
-                                material = ai.materials.get(1);
-                                Material material2 = ai.materials.get(2);
-                                if (ai.arsEntity.title != null /*&& ai.col == visCol*/) {
-                                    Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
-                                    if (tmpTexture2 != null ) {
-                                        if(ai.col == visCol) {
-                                            material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
-                                            material.id = "st";
-                                            material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
-                                            material2.id = "st";
-                                        } else {
-                                            material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
-                                            material.id = "st";
-                                            material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
-                                            material2.id = "st";
-                                        }
-                                    }
-                                }
-                            }
-                            ai.update = false;
-                        }
-                    } else {
-                        material.set(TextureAttribute.createDiffuse(manager.get(Gdx.files.internal("backg.jpg").path(), Texture.class)));
-                        material = ai.materials.get(1);
-                        Material material2 = ai.materials.get(2);
-                        if (ai.arsEntity.title != null /*&& ai.col == visCol && ai.textureHeadline*/) {
-                            Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
-                            if (tmpTexture2 != null) {
-                                if(ai.col == visCol) {
-                                    material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
-                                    material.id = "st";
-                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
-                                    material2.id = "st";
-                                } else {
-                                    material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
-                                    material.id = "st";
-                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
-                                    material2.id = "st";
-                                }
-                            }
-                        }
-                        ai.update = false;
-                    }
-
-                }
-            }
+            updateAllRows();
 
             TreeMap<Float, Integer> tm = getByDistance();
 
@@ -758,7 +492,6 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
                         ai3.materials.get(2).set(blendingAttribute4);
                     }
                 }
-//                resetBlending = false;
             }
 
 
@@ -780,50 +513,10 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
                         if (ais.textureHeadline) {
                             ais.materials.get(1).set(blendingAttribute);
                             ais.materials.get(2).set(blendingAttribute);
-//                            Material material = ais.materials.get(1);
-//                            Material material2 = ais.materials.get(2);
-//                            if (ais.arsEntity != null && ais.arsEntity.title != null) {
-//                                Texture tmpTexture2 = textureMap2.get(ais.arsEntity.title);
-//                                if (tmpTexture2 != null) {
-//                                    material.set(TextureAttribute.createDiffuse(tmpTexture2));
-//                                    material.id = "st";
-//                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2));
-//                                    material2.id = "st";
-//                                } else {
-//                                    tmpTexture2 = new Texture(textToTexture(ais.arsEntity.getTitle()));
-//                                    textureMap2.put(ais.arsEntity.getTitle(), tmpTexture2);
-//                                    material.set(TextureAttribute.createDiffuse(tmpTexture2));
-//                                    material.id = "st";
-//                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2));
-//                                    material2.id = "st";
-//                                }
-//                            }
                         }
                     }
                     resetBlending = false;
                 }
-//                float colAfter = visCol + 1 > 8 ? 0 : visCol + 1;
-//                float colBefore = visCol - 1 < 0 ? 8 : visCol - 1;
-//                List<ArticleInstance> rowEntries2 = cols.get(colAfter);
-//                for (ArticleInstance ais : rowEntries2) {
-//                    if(ais.arsEntity != null && ais.arsEntity.title != null) {
-//                        Texture tmpTexture2 = textureMap2.get(ais.arsEntity.title);
-//                        if (tmpTexture2 != null) {
-//                            tmpTexture2 = new Texture(textToTexture(ais.arsEntity.getTitle()));
-//                            textureMap2.put(ais.arsEntity.getTitle(), tmpTexture2);
-//                        }
-//                    }
-//                }
-//                List<ArticleInstance> rowEntries3 = cols.get(colBefore);
-//                for (ArticleInstance ais : rowEntries3) {
-//                    if(ais.arsEntity != null && ais.arsEntity.title != null) {
-//                        Texture tmpTexture2 = textureMap2.get(ais.arsEntity.title);
-//                        if (tmpTexture2 != null) {
-//                            tmpTexture2 = new Texture(textToTexture(ais.arsEntity.getTitle()));
-//                            textureMap2.put(ais.arsEntity.getTitle(), tmpTexture2);
-//                        }
-//                    }
-//                }
                 if (prevCol.compareTo(visCol) != 0) {
                     List<ArticleInstance> rowEntries = cols.get(visCol);
                     rowEntries = cols.get(prevCol);
@@ -833,19 +526,6 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
                             ais.materials.get(1).set(blendingAttribute4);
                             ais.materials.get(2).set(blendingAttribute4);
                         }
-//                        TextureAttribute ta = (TextureAttribute) ais.materials.get(1).get(TextureAttribute.Diffuse);
-//                        if(ta != null && ta.textureDescription != null && ta.textureDescription.texture != null) {
-//                            ta.textureDescription.texture.dispose();
-//                            ais.materials.get(1).remove(TextureAttribute.Diffuse);
-//                        }
-//                        ta = (TextureAttribute) ais.materials.get(2).get(TextureAttribute.Diffuse);
-//                        if(ta != null && ta.textureDescription != null && ta.textureDescription.texture != null) {
-//                            ta.textureDescription.texture.dispose();
-//                            ais.materials.get(2).remove(TextureAttribute.Diffuse);
-//                        }
-//                        if(ais.arsEntity != null) {
-//                            textureMap2.remove(ais.arsEntity.getTitle());
-//                        }
                     }
                     prevCol = visCol;
                     resetBlending = false;
@@ -855,30 +535,7 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
 
             for (Integer in : tm.descendingMap().values()) {
                 ArticleInstance ai = cylinderSides.get(in);
-//                if(ai.model.nodes.size > 1 && ai.model.nodes.get(1).id.equalsIgnoreCase("text")) {
-//                    Node node = ai.model.nodes.get(1);
-//                    if (node != null) {
-//                        node.localTransform.rotate(0.0f, 600.0f, 0.0f, 1);
-//                        node.calculateWorldTransform();
-//                        node.parts.get(0).meshPart.mesh.
-//                        node.translation.set(0,0,0);
-//                        node.scale.set(1,1,1);
-//                        node.rotation.idt();
-//                        node.localTransform.rotate(0.0f, 600.0f, 0.0f, 1);
-//                        node.translation.rotate(1f, 0.0f, 600.0f, 0.0f);
-//                        node.rotation.idt();
-//                        ai.calculateTransforms();
-//                        node.localTransform.rotate()
-
-//                    node.rotation
-//                    node.parts.transform.rotate(0.0f, 600.0f, 0.0f, degreesToRotate);
-//                    node.center.rotate(new Vector3(0.0f, 600.0f, 0.0f), degreesToRotate);
-//                    node.dimensions.rotate(new Vector3(0.0f, 600.0f, 0.0f), degreesToRotate);
-//                    }
-//                }
-//                if(!ai.video) {
                     modelBatchInternal.render(ai);
-//                }
                 if(ai.textModel != null) {
                     modelBatchInternal.render(ai.textModel);
                 }
@@ -891,16 +548,6 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
             modelBatchInternal.render(stop);
             modelBatchInternal.render(sbot);
             modelBatchInternal.end();
-
-//            for (Integer in : tm.descendingMap().values()) {
-//                ArticleInstance ai = cylinderSides.get(in);
-//                if(ai.video){
-//                    modelBatch3.begin(cam);
-//                    modelBatch3.render(ai);
-//                    modelBatch3.end();
-//                }
-//            }
-
         }
     }
 
@@ -925,13 +572,13 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
         }
     }
 
-    @Override
-    public void onFrameAvailable(SurfaceTexture surfaceTexture) {
-        synchronized (this)
-        {
-            frameAvailable = true;
-        }
-    }
+//    @Override
+//    public void onFrameAvailable(SurfaceTexture surfaceTexture) {
+//        synchronized (this)
+//        {
+//            frameAvailable = true;
+//        }
+//    }
 
 
 
@@ -968,21 +615,6 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
 
     @Override
     public void pause() {
-//        for(Texture text : textureMap2.values()) {
-//            text.dispose();
-//        }
-//        textureMap2.clear();
-//        modelBatch.dispose();
-//        modelBatch2.dispose();
-//        spriteBatch.dispose();
-//        for (ArticleInstance ai : cylinderSides) {
-//            ai.model.dispose();
-//            if(ai.textModel != null) {
-//                ai.textModel.model.dispose();
-//            }
-//        }
-//        manager.dispose();
-
 
     }
 
@@ -992,6 +624,7 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
 
     private int selected = -1, selecting = -1;
 
+    private volatile ArticleInstance aiToVid = null;
 
     public class MyGestureListener implements GestureDetector.GestureListener {
 
@@ -1027,21 +660,114 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
                     final ArticleInstance ai = cylinderSides.get(index);
                     if (ai != null && ai.arsEntity != null && ai.arsEntity.getLink() != null && !ai.arsEntity.getLink().isEmpty()) {
 
-//                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(ai.arsEntity.getLink()));
-//                        if (ars3d.parent != null) {
-//                            ars3d.parent.startActivity(intent);
-//                        }
                         Intent intent = new Intent(context, WebViewActivity.class);
                         intent.putExtra(WebViewActivity.URL, cylinderSides.get(index).arsEntity.getLink());
-//                        Intent intent = new Intent(Intent.ACTION_VIEW);
                         intent.setData(Uri.parse(ai.arsEntity.getLink()));
                         if (ars3d.parent != null) {
                             ars3d.parent.startActivity(intent);
                         }
 
-//                        material.set(TextureAttribute.createDiffuse(manager.get(Gdx.files.internal("backg.jpg").path(), Texture.class)));
+//                        aiToVid = ai;
+//                        SurfaceBean sb = new SurfaceBean();
+//
+////                        Texture vt = new Texture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, new VideoTextureData());
+//                        Texture vt = videoTexture;
+//
+//                        SurfaceTexture st = new SurfaceTexture(vt.getGlHandle2());
+//                        surfaceTexture = st;
+////                        sb.setSt(st);
+//                        st.setOnFrameAvailableListener(ars3d);
+//                        final Surface surface = new Surface(st);
+//
+//
+//
+//                        ///////
+//                        final RelativeLayout rl = (RelativeLayout) parent.findViewById(R.id.drawer_layout);
+//                        TextureView tv = new TextureView(parent);
+//
+//                        int curTextViewId = prevTextViewId + 1;
+//                        tv.setId(curTextViewId);
+//                        final RelativeLayout.LayoutParams params =
+//                                new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT,
+//                                        RelativeLayout.LayoutParams.MATCH_PARENT);
+//
+//                        params.addRule(RelativeLayout.BELOW, prevTextViewId);
+//                        tv.setLayoutParams(params);
+//                        tv.setVisibility(View.VISIBLE);
+//
+//                        prevTextViewId = curTextViewId;
+//
+//
+//                        AssetFileDescriptor afd2 = null;
+//                        try {
+//                            afd2 = parent.getAssets().openFd("big_buck_bunny.mp4");
+//                        } catch (IOException e) {
+//                            e.printStackTrace();
+//                        }
+//                        final AssetFileDescriptor afd = afd2;
+//                        tv.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
+//
+//                            MediaPlayer player;
+//                            @Override
+//                            public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+//                                startPlaying();
+//                            }
+//
+//                            @Override
+//                            public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+//
+//                            }
+//
+//                            @Override
+//                            public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+//                                return false;
+//                            }
+//
+//                            @Override
+//                            public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+//
+//                            }
+//
+//                            private void startPlaying()
+//                            {
+//                                player = new MediaPlayer();
+//
+//                                try {
+//
+//                                    player.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
+////                                            player.setDataSource("http://assets.ign.com/videos/zencoder/1920/68d0fff357ad0b6f1be11bcb6f9f4c37-5000000-1417041042-w.mp4");
+//                                    player.setSurface(surface);
+//                                    player.setLooping(true);
+//                                    player.prepare();
+//                                    player.start();
+//
+//                                } catch (IOException e) {
+//                                    throw new RuntimeException("Could not open input video!");
+//                                }
+//                            }
+//                        });
+//                        //////
+//
+//
+//                        final TextureView tv2 = tv;
+//                        parent.runOnUiThread(new Runnable() {
+//                            @Override
+//                            public void run() {
+//                                rl.addView(tv2, params);
+//                            }
+//                        });
+//                        RunVideoSetup rvs = new RunVideoSetup(st,parent, surface);
+//                        parent.runOnUiThread(rvs);
+
+
 //                        ai.materials.first().remove(TextureAttribute.Diffuse);
 //                        ai.materials.first().set(TextureAttribute.createVideo(videoTexture));
+
+
+//                        sbBeans.add(sb);
+
+
+
 //                        TextureAttribute ta = (TextureAttribute)ai.materials.get(0).get(TextureAttribute.Diffuse);
 //                        ta.textureDescription.textureUnitToUse = textures.get(0);
 //                        ai.video = true;
@@ -1100,6 +826,8 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
             }
             return false;
         }
+
+
 
         @Override
         public boolean longPress(float x, float y) {
@@ -1187,28 +915,6 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
             }
         }
 
-        public void setSelected(int value) {
-            if (selected == value) return;
-            if (selected >= 0) {
-            }
-            selected = value;
-            if (selected >= 0) {
-                Log.e("Touched", cylinderSides.get(selected).arsEntity.getTitle());
-
-
-                Intent intent = new Intent(context, WebViewActivity.class);
-                intent.putExtra(WebViewActivity.URL, cylinderSides.get(selected).arsEntity.getLink());
-//                ars3d.parent.startActivity(intent);
-//                Intent intent = new Intent(Intent.ACTION_VIEW);
-//                intent.setData(Uri.parse(cylinderSides.get(selected).arsEntity.getLink()));
-
-                if (ars3d.parent != null) {
-                    ars3d.parent.startActivity(intent);
-                }
-
-            }
-        }
-
         public int getObject(int screenX, int screenY) {
             cam.update();
             Ray ray = cam.getPickRay(screenX, screenY);
@@ -1236,6 +942,93 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
                 }
             }
             return result;
+        }
+    }
+
+    static int prevTextViewId = 9999;
+
+    public static class RunVideoSetup implements Runnable {
+
+        private SurfaceTexture st;
+        private AndroidLauncher parent;
+        private Surface surface;
+
+
+        public RunVideoSetup(SurfaceTexture st, AndroidLauncher parent, Surface surface) {
+            this.st = st;
+            this.parent = parent;
+            this.surface = surface;
+        }
+
+        @Override
+        public void run() {
+            RelativeLayout rl = (RelativeLayout) parent.findViewById(R.id.drawer_layout);
+            TextureView tv = new TextureView(parent);
+
+            int curTextViewId = prevTextViewId + 1;
+            tv.setId(curTextViewId);
+            final RelativeLayout.LayoutParams params =
+                    new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT,
+                            RelativeLayout.LayoutParams.MATCH_PARENT);
+
+            params.addRule(RelativeLayout.BELOW, prevTextViewId);
+            tv.setLayoutParams(params);
+            tv.setVisibility(View.VISIBLE);
+
+            prevTextViewId = curTextViewId;
+
+
+            AssetFileDescriptor afd2 = null;
+            try {
+                afd2 = parent.getAssets().openFd("big_buck_bunny.mp4");
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            final AssetFileDescriptor afd = afd2;
+            tv.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
+
+                MediaPlayer player;
+                @Override
+                public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+                    startPlaying();
+                }
+
+                @Override
+                public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+
+                }
+
+                @Override
+                public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+                    return false;
+                }
+
+                @Override
+                public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+
+                }
+
+                private void startPlaying()
+                {
+                    player = new MediaPlayer();
+
+                    try {
+
+                        player.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
+//                                            player.setDataSource("http://assets.ign.com/videos/zencoder/1920/68d0fff357ad0b6f1be11bcb6f9f4c37-5000000-1417041042-w.mp4");
+                        player.setSurface(surface);
+                        player.setLooping(true);
+                        player.prepare();
+                        player.start();
+
+                    } catch (IOException e) {
+                        throw new RuntimeException("Could not open input video!");
+                    }
+                }
+            });
+            rl.addView(tv, params);
+
+
         }
     }
 
@@ -1301,13 +1094,9 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
                     ArsEntity tmpEntity = it.next();
                     Log.w("Ars3dArs1", tmpEntity.toString());
                     ArticleInstance ai = row.get(i);
-                    if (ai.arsEntity == null || ai.arsEntity.getLink() == null || ai.arsEntity.getLink().equalsIgnoreCase(tmpEntity.getLink())) {
+//                    if (ai.arsEntity == null || ai.arsEntity.getLink() == null || ai.arsEntity.getLink().equalsIgnoreCase(tmpEntity.getLink())) {
+                    if(tmpEntity != null) {
                         ai.arsEntity = tmpEntity;
-//                        float colAfter = visCol + 1 > 8 ? 0 : visCol + 1;
-//                        float colBefore = visCol - 1 < 0 ? 8 : visCol - 1;
-//                        if(ai.col == colBefore || ai.col == visCol || ai.col == colAfter ) {
-//                            textureMap2.put(ai.arsEntity.getTitle(), new Texture(textToTexture(ai.arsEntity.getTitle())));
-//                        }
                         if(textureHeadlines) {
                             textureMap2.put(ai.arsEntity.getTitle(), new Texture(textToTexture(ai.arsEntity.getTitle())));
                         }
@@ -1328,13 +1117,9 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
                     ArsEntity tmpEntity = it.next();
                     Log.w("Ars3dArs0", tmpEntity.toString());
                     ArticleInstance ai = row.get(i);
-                    if (ai.arsEntity == null || ai.arsEntity.getLink() == null || ai.arsEntity.getLink().equalsIgnoreCase(tmpEntity.getLink())) {
+//                    if (ai.arsEntity == null || ai.arsEntity.getLink() == null || ai.arsEntity.getLink().equalsIgnoreCase(tmpEntity.getLink())) {
+                    if(tmpEntity != null) {
                         ai.arsEntity = tmpEntity;
-//                        float colAfter = visCol + 1 > 8 ? 0 : visCol + 1;
-//                        float colBefore = visCol - 1 < 0 ? 8 : visCol - 1;
-//                        if(ai.col == colBefore || ai.col == visCol || ai.col == colAfter ) {
-//                            textureMap2.put(ai.arsEntity.getTitle(), new Texture(textToTexture(ai.arsEntity.getTitle())));
-//                        }
                         if(textureHeadlines) {
                             textureMap2.put(ai.arsEntity.getTitle(), new Texture(textToTexture(ai.arsEntity.getTitle())));
                         }
@@ -1355,13 +1140,9 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
                     ArsEntity tmpEntity = it.next();
                     Log.w("Ars3dArs2", tmpEntity.toString());
                     ArticleInstance ai = row.get(i);
-                    if (ai.arsEntity == null || ai.arsEntity.getLink() == null || ai.arsEntity.getLink().equalsIgnoreCase(tmpEntity.getLink())) {
+//                    if (ai.arsEntity == null || ai.arsEntity.getLink() == null || ai.arsEntity.getLink().equalsIgnoreCase(tmpEntity.getLink())) {
+                    if(tmpEntity != null) {
                         ai.arsEntity = tmpEntity;
-//                        float colAfter = visCol + 1 > 8 ? 0 : visCol + 1;
-//                        float colBefore = visCol - 1 < 0 ? 8 : visCol - 1;
-//                        if(ai.col == colBefore || ai.col == visCol || ai.col == colAfter ) {
-//                            textureMap2.put(ai.arsEntity.getTitle(), new Texture(textToTexture(ai.arsEntity.getTitle())));
-//                        }
                         if(textureHeadlines) {
                             textureMap2.put(ai.arsEntity.getTitle(), new Texture(textToTexture(ai.arsEntity.getTitle())));
                         }
@@ -1389,7 +1170,6 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
 
 
     private Pixmap textToTexture(String text) {
-//        text = "Hi";
         BitmapFont.TextBounds tb = font.getBounds(text);
 
         int totalWidth = 52;
@@ -1413,10 +1193,6 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
             } else {
                 currentWidth += 26;
             }
-
-//            if (ch == 'f') {
-//                currentWidth -= 15;
-//            }
         }
 
         if (pm2.getWidth() > 4048) {
@@ -1435,7 +1211,6 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
 
 
     private GlyphUnit textToTexture2(String text) {
-//        text = "Hi";
         BitmapFont.TextBounds tb = font.getBounds(text);
 
         GlyphUnit glyphUnit = new GlyphUnit();
@@ -1461,5 +1236,107 @@ public class Ars3d implements ApplicationListener, SurfaceTexture.OnFrameAvailab
 
     public void setImageUpdates(Boolean imageUpdates) {
         this.imageUpdates = imageUpdates;
+    }
+
+    public void updateAllRows () {
+        List<ArticleInstance> row1 = rows.get(1.0f);
+        for (ArticleInstance ai : row1) {
+            updateImage(ai);
+        }
+
+        List<ArticleInstance> row2 = rows.get(2.0f);
+        for (ArticleInstance ai : row2) {
+            updateImage(ai);
+        }
+
+        List<ArticleInstance> row0 = rows.get(0.0f);
+        for (ArticleInstance ai : row0) {
+            updateImage(ai);
+        }
+    }
+
+    public void updateImage (ArticleInstance ai) {
+        if (ai.update) {
+            Material material = ai.materials.get(0);
+            if (ai.arsEntity.localImgPath != null) {
+                if (manager.isLoaded(Gdx.files.absolute(ai.arsEntity.localImgPath).path())) {
+                    material.set(TextureAttribute.createDiffuse(manager.get(new AssetDescriptor<Texture>(Gdx.files.absolute(ai.arsEntity.localImgPath).path(), Texture.class))));
+                    if(ai.textureHeadline) {
+                        material = ai.materials.get(1);
+                        Material material2 = ai.materials.get(2);
+                        if (ai.arsEntity.title != null) {
+                            Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
+                            if (tmpTexture2 != null /*&& ai.col == visCol*/) {
+                                if(ai.col == visCol) {
+                                    material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
+                                    material.id = "st";
+                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
+                                    material2.id = "st";
+                                } else {
+                                    material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
+                                    material.id = "st";
+                                    material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
+                                    material2.id = "st";
+                                }
+                            }
+                        }
+                    }
+                    ai.update = false;
+                }
+            } else {
+                material.set(TextureAttribute.createDiffuse(manager.get(Gdx.files.internal("tbsign1.png").path(), Texture.class)));
+                material = ai.materials.get(1);
+                Material material2 = ai.materials.get(2);
+                if (ai.arsEntity.title != null) {
+                    Texture tmpTexture2 = textureMap2.get(ai.arsEntity.title);
+                    if (tmpTexture2 != null /*&& ai.col == visCol && ai.textureHeadline*/) {
+                        if(ai.col == visCol) {
+                            material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
+                            material.id = "st";
+                            material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute);
+                            material2.id = "st";
+                        } else {
+                            material.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
+                            material.id = "st";
+                            material2.set(TextureAttribute.createDiffuse(tmpTexture2),blendingAttribute4);
+                            material2.id = "st";
+                        }
+                    }
+                }
+                ai.update = false;
+            }
+
+        }
+    }
+
+    public static class SurfaceBean implements SurfaceTexture.OnFrameAvailableListener {
+        public SurfaceTexture st;
+        public boolean frameAvailable;
+
+        public void setSt (SurfaceTexture st) {
+            this.st = st;
+            this.st.setOnFrameAvailableListener(this);
+        }
+
+        @Override
+        public void onFrameAvailable(SurfaceTexture surfaceTexture) {
+            synchronized (this)
+            {
+                frameAvailable = true;
+            }
+        }
+
+        public void updateTextures () {
+            synchronized (this)
+            {
+                if (frameAvailable)
+                {
+                    st.updateTexImage();
+//                surfaceTexture.getTransformMatrix(videoTextureTransform);
+                    frameAvailable = false;
+                }
+
+            }
+        }
     }
 }

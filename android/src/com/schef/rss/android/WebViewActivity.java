@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.View;
@@ -45,8 +46,24 @@ public class WebViewActivity extends Activity {
 
             String url = getIntent().getStringExtra(URL);
             webView.getSettings().setJavaScriptEnabled(true);
-            webView.getSettings().setJavaScriptCanOpenWindowsAutomatically(false);
+            webView.getSettings().setJavaScriptCanOpenWindowsAutomatically(true);
             webView.setWebChromeClient(new WebChromeClient() {
+
+            });
+            webView.setWebViewClient(new WebViewClient() {
+                @Override
+                public boolean shouldOverrideUrlLoading(WebView view, String url){
+                    Log.w("WebView", "url [" + url + "]");
+                    // do your handling codes here, which url is the requested url
+                    // probably you need to open that url rather than redirect:
+                    view.loadUrl(url);
+                    if(url != null && url.contains("http://www.nytimes.com/glogin")) {
+                        return false; // then it is not handled by default action
+                    } else {
+                        return true;
+                    }
+
+                }
             });
 
 //        webView.getSettings().setBuiltInZoomControls(true);
