@@ -43,10 +43,13 @@ import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.wearable.DataApi;
 import com.google.android.gms.wearable.MessageApi;
 import com.google.android.gms.wearable.Node;
+import com.google.android.gms.wearable.NodeApi;
 import com.google.android.gms.wearable.PutDataMapRequest;
 import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
 import com.google.gson.Gson;
+import com.nostra13.universalimageloader.core.DisplayImageOptions;
+import com.nostra13.universalimageloader.core.ImageLoader;
 
 import org.apache.commons.io.FileUtils;
 
@@ -71,15 +74,14 @@ public class SampleGridPagerAdapter extends FragmentGridPagerAdapter {
     private List<ArsEntity> fromJson;
 
     private GoogleApiClient mGoogleApiClient;
-    private List<Node> curNode;
+//    private List<Node> curNode;
 
     public SampleGridPagerAdapter(Context ctx, FragmentManager fm, List<ArsEntity> fromJson,
-                                  GoogleApiClient mGoogleApiClient, List<Node> curNode) {
+                                  GoogleApiClient mGoogleApiClient) {
         super(fm);
         this.mContext = ctx;
         this.fromJson = fromJson;
         this.mGoogleApiClient = mGoogleApiClient;
-        this.curNode = curNode;
     }
 
 //    static final int[] BG_IMAGES = new int[] {
@@ -126,78 +128,22 @@ public class SampleGridPagerAdapter extends FragmentGridPagerAdapter {
     }
 
     private final Page[][] PAGES = {
-//            {
-//                    new Page(R.string.welcome_title, R.string.welcome_text, R.drawable.bugdroid,
-//                            Gravity.CENTER_VERTICAL),
-//            },
-//            {
-//                    new Page(R.string.about_title, R.string.about_text, false),
-//            },
-//            {
-//                    new Page(R.string.cards_title, R.string.cards_text, true, 2),
-//                    new Page(R.string.expansion_title, R.string.expansion_text, true, 10),
-//            },
-//            {
-//                    new Page(R.string.backgrounds_title, R.string.backgrounds_text, true, 2),
-//                    new Page(R.string.columns_title, R.string.columns_text, true, 2)
-//            },
-//            {
-//                    new Page(R.string.dismiss_title, R.string.dismiss_text, R.drawable.bugdroid,
-//                            Gravity.CENTER_VERTICAL),
-//            },
-
     };
 
     @Override
     public Fragment getFragment(int row, int col) {
-//        Page page = PAGES[row][col];
-//        String title = page.titleRes != 0 ? mContext.getString(page.titleRes) : null;
-//        String text = page.textRes != 0 ? mContext.getString(page.textRes) : null;
-//        CardFragment fragment;
-//        if(fromJson.isEmpty()) {
-//            fragment = CardFragment.create("test", "test", R.drawable.card_background);
-//        } else {
-//
-//            fragment = CardFragment.create(arsEntity.getTitle(), arsEntity.getTitle(), R.drawable.card_background);
-//        }
-//        // Advanced settings
-//        fragment.setCardGravity(Gravity.BOTTOM);
-//        fragment.setExpansionEnabled(true);
-//        fragment.setExpansionDirection(CardFragment.EXPAND_DOWN);
-//        fragment.setExpansionFactor(1.0f);
-//
-//        return fragment;
 
         if(!fromJson.isEmpty()) {
             ArsEntity arsEntity = fromJson.get(col);
             NotificationPresetFragment fragment = NotificationPresetFragment.newInstance(
-                    mGoogleApiClient, curNode, arsEntity);
+                    mGoogleApiClient, arsEntity);
             return fragment;
         } else {
             BlankFragment bf = new BlankFragment();
             return bf;
-//            CardFragment cardFragment = CardFragment.create("test", "test", R.drawable.card_background);
-//            return cardFragment;
         }
 
     }
-
-//    @Override
-//    public ImageReference getBackground(int row, int column) {
-//
-//        if(!fromJson.isEmpty()) {
-//            ArsEntity arsEntity = fromJson.get(column);
-//            File file = new File("/profileImage" + arsEntity.getLocalImgPath());
-//            if(file.exists()) {
-//                Bitmap bitmap = BitmapFactory.decodeFile("/profileImage" + arsEntity.getLocalImgPath());
-//                return ImageReference.forBitmap(bitmap);
-//            } else {
-//                return ImageReference.forDrawable(R.drawable.card_background);
-//            }
-//        } else {
-//            return ImageReference.forDrawable(R.drawable.card_background);
-//        }
-//    }
 
 
 
@@ -225,7 +171,7 @@ public class SampleGridPagerAdapter extends FragmentGridPagerAdapter {
 
         private GoogleApiClient mGoogleApiClient;
         private boolean mResolvingError = false;
-        private List<Node> curNode;
+//        private List<Node> curNode;
 //        private Typeface typeface;
 
         private ImageView stopImageView;
@@ -236,16 +182,16 @@ public class SampleGridPagerAdapter extends FragmentGridPagerAdapter {
         ArsEntity arsEntity;
 
 
-        public NotificationPresetFragment(GoogleApiClient mGoogleApiClient, List<Node> curNode, ArsEntity arsEntity) {
+        public NotificationPresetFragment(GoogleApiClient mGoogleApiClient, ArsEntity arsEntity) {
             super();
             this.mGoogleApiClient = mGoogleApiClient;
-            this.curNode = curNode;
+//            this.curNode = curNode;
             this.arsEntity = arsEntity;
         }
 
-        public static NotificationPresetFragment newInstance(GoogleApiClient mGoogleApiClient, List<Node> curNode, ArsEntity arsEntity) {
+        public static NotificationPresetFragment newInstance(GoogleApiClient mGoogleApiClient, ArsEntity arsEntity) {
             Bundle args = new Bundle();
-            NotificationPresetFragment newFragment = new NotificationPresetFragment(mGoogleApiClient, curNode, arsEntity);
+            NotificationPresetFragment newFragment = new NotificationPresetFragment(mGoogleApiClient, arsEntity);
             newFragment.setArguments(args);
             return newFragment;
         }
@@ -271,19 +217,29 @@ public class SampleGridPagerAdapter extends FragmentGridPagerAdapter {
 
 
             cardBackImageView = (ImageView) view.findViewById(R.id.cardBackImage);
-            String newPath = arsEntity.getLocalImgPath().replaceAll(".*/app_localfiles","");
-            File file = new File(view.getContext().getFilesDir(), newPath);
-            if(file.exists()) {
-
-//                R.layout.fragment_action
-
-                Bitmap bitmap = BitmapFactory.decodeFile(file.getAbsolutePath());
-//                BitmapDrawable ob = new BitmapDrawable(bitmap);
-//                view.setBackground(ob);
-                cardBackImageView.setImageBitmap(bitmap);
+            if(arsEntity.getLocalImgPath() != null) {
+                String newPath = arsEntity.getLocalImgPath().replaceAll(".*/app_localfiles", "");
+                File file = new File(view.getContext().getFilesDir(), newPath);
+                if (file.exists()) {
+                    ImageLoader.getInstance().displayImage("file://" + file.getAbsolutePath(), cardBackImageView);
+                }
             }
 
 //            view.setOnClickListener(this);
+        }
+
+        private List<String> getNodes() {
+            List<String> results = new ArrayList<String>();
+            if(mGoogleApiClient != null) {
+                NodeApi.GetConnectedNodesResult nodes =
+                        Wearable.NodeApi.getConnectedNodes(mGoogleApiClient).await();
+                if(nodes != null && nodes.getNodes() != null) {
+                    for (Node node : nodes.getNodes()) {
+                        results.add(node.getId());
+                    }
+                }
+            }
+            return results;
         }
 
 
@@ -292,53 +248,102 @@ public class SampleGridPagerAdapter extends FragmentGridPagerAdapter {
             int presetIndex = getArguments().getInt(KEY_PRESET_INDEX);
 //            ((MainActivity) getActivity()).updateNotification(presetIndex);
 
-            if(mGoogleApiClient != null && curNode != null && !curNode.isEmpty()) {
+
+            if(mGoogleApiClient != null) {
                 if(playing) {
                     stopImageView.setVisibility(View.INVISIBLE);
                     startImageView.setVisibility(View.VISIBLE);
                     playing = false;
-                    if(mGoogleApiClient != null && curNode != null && !curNode.isEmpty()) {
-                        if(curNode != null && !curNode.isEmpty() && arsEntity != null && arsEntity.getLink() != null && !arsEntity.getLink().isEmpty()) {
-                            progressBar.setVisibility(View.GONE);
-                            Wearable.MessageApi.sendMessage(
-                                    mGoogleApiClient, curNode.get(0).getId(), "/stop", "2".getBytes()).setResultCallback(
-                                    new ResultCallback<MessageApi.SendMessageResult>() {
-                                        @Override
-                                        public void onResult(MessageApi.SendMessageResult sendMessageResult) {
-                                            if (sendMessageResult.getStatus().isSuccess()) {
-                                                Log.e(TAG, "Failed to connect to Google Api Client with status: "
-                                                        + sendMessageResult.getStatus());
-                                            }
-                                        }
-                                    }
-                            );
-                        }
+                    if(mGoogleApiClient != null && arsEntity != null && arsEntity.getLink() != null && !arsEntity.getLink().isEmpty()) {
+                        progressBar.setVisibility(View.GONE);
+                        StopPlaybackTask spt = new StopPlaybackTask();
+                        spt.execute();
+//                            Wearable.MessageApi.sendMessage(
+//                                    mGoogleApiClient, ids.get(0), "/stop", "2".getBytes()).setResultCallback(
+//                                    new ResultCallback<MessageApi.SendMessageResult>() {
+//                                        @Override
+//                                        public void onResult(MessageApi.SendMessageResult sendMessageResult) {
+//                                            if (sendMessageResult.getStatus().isSuccess()) {
+//                                                Log.e(TAG, "Failed to connect to Google Api Client with status: "
+//                                                        + sendMessageResult.getStatus());
+//                                            }
+//                                        }
+//                                    }
+//                            );
+
                     }
                 } else {
                     stopImageView.setVisibility(View.VISIBLE);
                     startImageView.setVisibility(View.INVISIBLE);
                     playing = true;
-                    if(mGoogleApiClient != null && curNode != null && !curNode.isEmpty()) {
-                        if(curNode != null && !curNode.isEmpty() && arsEntity != null && arsEntity.getLink() != null && !arsEntity.getLink().isEmpty()) {
-                            progressBar.setVisibility(View.VISIBLE);
-                            ProgressTask pt = new ProgressTask(progressBar);
-                            pt.execute();
-                            Wearable.MessageApi.sendMessage(
-                                    mGoogleApiClient, curNode.get(0).getId(), "/start", arsEntity.getLink().getBytes()).setResultCallback(
-                                    new ResultCallback<MessageApi.SendMessageResult>() {
-                                        @Override
-                                        public void onResult(MessageApi.SendMessageResult sendMessageResult) {
-                                            if (sendMessageResult.getStatus().isSuccess()) {
-                                                Log.e(TAG, "Failed to connect to Google Api Client with status: "
-                                                        + sendMessageResult.getStatus());
-                                            }
-                                        }
-                                    }
-                            );
-                        }
+                    if(mGoogleApiClient != null && arsEntity != null && arsEntity.getLink() != null && !arsEntity.getLink().isEmpty()) {
+                        progressBar.setVisibility(View.VISIBLE);
+                        ProgressTask pt = new ProgressTask(progressBar);
+                        pt.execute();
+                        StartPlaybackTask spt = new StartPlaybackTask();
+                        spt.execute();
+//                            Wearable.MessageApi.sendMessage(
+//                                    mGoogleApiClient, ids.get(0), "/start", arsEntity.getLink().getBytes()).setResultCallback(
+//                                    new ResultCallback<MessageApi.SendMessageResult>() {
+//                                        @Override
+//                                        public void onResult(MessageApi.SendMessageResult sendMessageResult) {
+//                                            if (sendMessageResult.getStatus().isSuccess()) {
+//                                                Log.e(TAG, "Failed to connect to Google Api Client with status: "
+//                                                        + sendMessageResult.getStatus());
+//                                            }
+//                                        }
+//                                    }
+//                            );
+
                     }
                 }
 
+            }
+        }
+
+        private class StopPlaybackTask extends AsyncTask<Void, Void, Void> {
+
+            @Override
+            protected Void doInBackground(Void... params) {
+                List<String> ids = getNodes();
+                if(mGoogleApiClient != null && ids != null && !ids.isEmpty()) {
+                    Wearable.MessageApi.sendMessage(
+                            mGoogleApiClient, ids.get(0), "/stop", "2".getBytes()).setResultCallback(
+                            new ResultCallback<MessageApi.SendMessageResult>() {
+                                @Override
+                                public void onResult(MessageApi.SendMessageResult sendMessageResult) {
+                                    if (sendMessageResult.getStatus().isSuccess()) {
+                                        Log.e(TAG, "Failed to connect to Google Api Client with status: "
+                                                + sendMessageResult.getStatus());
+                                    }
+                                }
+                            }
+                    );
+                }
+                return null;
+            }
+        }
+
+        private class StartPlaybackTask extends AsyncTask<Void, Void, Void> {
+
+            @Override
+            protected Void doInBackground(Void... params) {
+                List<String> ids = getNodes();
+                if(mGoogleApiClient != null && ids != null && !ids.isEmpty()) {
+                    Wearable.MessageApi.sendMessage(
+                            mGoogleApiClient, ids.get(0), "/start", arsEntity.getLink().getBytes()).setResultCallback(
+                            new ResultCallback<MessageApi.SendMessageResult>() {
+                                @Override
+                                public void onResult(MessageApi.SendMessageResult sendMessageResult) {
+                                    if (sendMessageResult.getStatus().isSuccess()) {
+                                        Log.e(TAG, "Failed to connect to Google Api Client with status: "
+                                                + sendMessageResult.getStatus());
+                                    }
+                                }
+                            }
+                    );
+                }
+                return null;
             }
         }
 

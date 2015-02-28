@@ -12,6 +12,7 @@ import android.os.IBinder;
 import android.os.Message;
 import android.provider.Settings;
 import android.speech.tts.TextToSpeech;
+import android.support.v4.content.LocalBroadcastManager;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
@@ -22,11 +23,14 @@ import com.splunk.mint.Mint;
 import org.apache.commons.io.IOUtils;
 
 import java.io.FileInputStream;
+import java.util.HashMap;
 import java.util.TreeSet;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+
+import javax.microedition.khronos.opengles.GL10;
 
 /**
  * Created by scheffela on 7/26/14.
@@ -50,6 +54,7 @@ public class NewApplication extends Application {
     private ThreadPoolExecutor threadPoolExecutor;
 
     private TreeSet<ArsEntity> itemsTreeSet = new TreeSet<ArsEntity>();
+    private HashMap<String,ArsEntity> itemsLookup = new HashMap<String, ArsEntity>();
 
     private Ars3d ars3d;
 
@@ -64,6 +69,7 @@ public class NewApplication extends Application {
     @Override
     public void onCreate() {
         instance = this;
+
 
         ConfigPojo tmp = getConfigFromFile(getApplicationContext());
         if(tmp != null) {
@@ -120,7 +126,7 @@ public class NewApplication extends Application {
             mService = binder.getService();
 
             mService.registerHandler(newHandler);
-            mService.setItemsTreeSetRef(itemsTreeSet);
+//            mService.setItemsTreeSetRef(itemsTreeSet);
             Log.e("ServiceConnected","Called Runnable");
             mBound = true;
             performParse(false);
@@ -144,6 +150,10 @@ public class NewApplication extends Application {
 
                 if (mService != null && (wifi != null && wifi.isConnectedOrConnecting() || (netType > 0 && netType != -1))) {
                     mService.parse(clean);
+                    Intent localIntent = new Intent(ArsWearListener.BROADCAST_ACTION);
+                    // Broadcasts the Intent to receivers in this app.
+                    LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(localIntent);
+
                 } else {
 
                 }
@@ -207,7 +217,7 @@ public class NewApplication extends Application {
             configPojo = gson.fromJson(serial, ConfigPojo.class);
             IOUtils.closeQuietly(fis);
         } catch (Exception e) {
-            Log.e("ConfigLoader", "problem loading config", e);
+//            Log.e("ConfigLoader", "problem loading config", e);
         }
         return configPojo;
     }
@@ -261,5 +271,11 @@ public class NewApplication extends Application {
         this.mTts = mTts;
     }
 
+    public HashMap<String, ArsEntity> getItemsLookup() {
+        return itemsLookup;
+    }
 
+    public void setItemsLookup(HashMap<String, ArsEntity> itemsLookup) {
+        this.itemsLookup = itemsLookup;
+    }
 }

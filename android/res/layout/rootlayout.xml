@@ -27,7 +27,8 @@
         android:id="@+id/content_frame"
         android:layout_width="fill_parent"
         android:layout_height="fill_parent"
-        android:visibility="visible"></FrameLayout>
+        android:visibility="visible">
+    </FrameLayout>
 
     <!--<ListView-->
     <!--android:layout_width="250dp"-->

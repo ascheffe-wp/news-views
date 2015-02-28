@@ -4,9 +4,12 @@ import android.app.Service;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteException;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Binder;
@@ -31,6 +34,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -81,8 +85,8 @@ public class ArsDataFetcherService extends Service {
 
     private Handler uiHandler;
 
-    private TreeSet<ArsEntity> itemsTreeSetRef;
-    private HashMap<String,ArsEntity> itemLookUp = new HashMap<String,ArsEntity>();
+//    private TreeSet<ArsEntity> itemsTreeSetRef;
+//    private HashMap<String,ArsEntity> itemLookUp = new HashMap<String,ArsEntity>();
 
     private static String conentSource = "http://www.evilcorgi.com/contentservice/site/vic";
 
@@ -176,13 +180,6 @@ public class ArsDataFetcherService extends Service {
                     // Connect to the web site
                     cleanStorage(getDb(getApplicationContext()));
 
-//                    URL url = new URL("http://www.evilcorgi.com/contentservice/site/nyt");
-//                    HttpURLConnection con = (HttpURLConnection)url.openConnection();
-//                    con.getConnectTimeout();
-//                    InputStream in = con.getInputStream();
-//                    String encoding = con.getContentEncoding();
-//                    encoding = encoding == null ? "UTF-8" : encoding;
-//                    String body = IOUtils.toString(in, encoding);
                     String srcUrl = Utils.getPaper(getApplicationContext());
 
                     String body = downloadNewFile(srcUrl,4);
@@ -190,15 +187,16 @@ public class ArsDataFetcherService extends Service {
                     ArsEntity[] ents = gson.fromJson(body, ArsEntity[].class);
 
                     if(clean) {
-                        synchronized (itemsTreeSetRef) {
-                            itemsTreeSetRef.clear();
+                        synchronized (NewApplication.getInstance().getItemsTreeSet()) {
+                            NewApplication.getInstance().getItemsTreeSet().clear();
+                            NewApplication.getInstance().getItemsLookup().clear();
                         }
                     }
 
                     List<Future<ArsEntity>> tasks = new ArrayList<Future<ArsEntity>>();
                     for (ArsEntity ae : ents) {
-                        if (!itemsTreeSetRef.contains(ae) || itemLookUp.get(ae.getLink()) == null ||
-                                itemLookUp.get(ae.getLink()).getType().equals(ArsEntity.NON_IMAGE)) {
+                        if (!NewApplication.getInstance().getItemsTreeSet().contains(ae)) {
+                            //|| itemLookUp.get(ae.getLink()) == null ||itemLookUp.get(ae.getLink()).getType().equals(ArsEntity.NON_IMAGE)) {
                             ImageProcessorCallable ipc = new ImageProcessorCallable(ae, getTargetDir(getApplicationContext()), getApplicationContext(), getDb(getApplicationContext()));
                             tasks.add(NewApplication.getInstance().getThreadPoolExecutor().submit(ipc));
                         }
@@ -206,14 +204,16 @@ public class ArsDataFetcherService extends Service {
 
 
 //            rrwl.writeLock().tryLock(3, TimeUnit.MINUTES);
-                    synchronized (itemsTreeSetRef) {
+                    synchronized (NewApplication.getInstance().getItemsTreeSet()) {
                         for (Future<ArsEntity> future : tasks) {
                             try {
                                 ArsEntity arsEntity = future.get(10, TimeUnit.MINUTES);
-                                if (!itemsTreeSetRef.add(arsEntity)) {
+                                if (!NewApplication.getInstance().getItemsTreeSet().add(arsEntity)) {
                                     Log.w(TAG, "Already contained" + arsEntity);
                                 }
-                                itemLookUp.put(arsEntity.getLink(), arsEntity);
+                                System.gc();
+                                NewApplication.getInstance().getItemsLookup().put(arsEntity.getLink(), arsEntity);
+
 
                             } catch (InterruptedException e) {
                                 Log.e(TAG, "Got an interrupt while waiting to complete", e);
@@ -227,21 +227,21 @@ public class ArsDataFetcherService extends Service {
                     }
 
 
-                    if (itemsTreeSetRef.isEmpty()) {
+                    if (NewApplication.getInstance().getItemsTreeSet().isEmpty()) {
                         FileInputStream fis = openFileInput("list.json");
                         String serial = IOUtils.toString(fis);
                         TreeSet<ArsEntity> fromJson =
                                 gson.fromJson(serial, new TypeToken<TreeSet<ArsEntity>>() {
                                 }.getType());
-                        itemsTreeSetRef = fromJson;
-                        itemLookUp = new HashMap<String, ArsEntity>();
+                        NewApplication.getInstance().getItemsTreeSet().addAll(fromJson);
+//                        itemLookUp = new HashMap<String, ArsEntity>();
                         for (ArsEntity arsEntity : fromJson.descendingSet()) {
-                            itemLookUp.put(arsEntity.getLink(), arsEntity);
+                            NewApplication.getInstance().getItemsLookup().put(arsEntity.getLink(), arsEntity);
                         }
                         IOUtils.closeQuietly(fis);
                     }
 
-                    String serial = gson.toJson(itemsTreeSetRef);
+                    String serial = gson.toJson(NewApplication.getInstance().getItemsTreeSet());
 
                     FileOutputStream fos = openFileOutput("list.json", Context.MODE_PRIVATE);
                     IOUtils.write(serial, fos);
@@ -252,10 +252,10 @@ public class ArsDataFetcherService extends Service {
                     TreeSet<ArsEntity> fromJson =
                             gson.fromJson(serial, new TypeToken<TreeSet<ArsEntity>>() {
                             }.getType());
-                    itemsTreeSetRef = fromJson;
-                    itemLookUp = new HashMap<String, ArsEntity>();
+                    NewApplication.getInstance().getItemsTreeSet().addAll(fromJson);
+//                    itemLookUp = new HashMap<String, ArsEntity>();
                     for (ArsEntity arsEntity : fromJson.descendingSet()) {
-                        itemLookUp.put(arsEntity.getLink(), arsEntity);
+                        NewApplication.getInstance().getItemsLookup().put(arsEntity.getLink(), arsEntity);
                     }
                     IOUtils.closeQuietly(fis);
                 }
@@ -272,386 +272,6 @@ public class ArsDataFetcherService extends Service {
             }
         }
 
-
-    }
-
-
-    public void parse3() {
-        synchronized (FILES_ROOT) {
-            try {
-                ConnectivityManager cm = (ConnectivityManager) getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
-                NetworkInfo ni = cm.getActiveNetworkInfo();
-                Gson gson = new Gson();
-                if (ni != null && ni.isConnected()) {
-                    //
-                    try {
-                        URL url = new URL("https://s3.amazonaws.com/arsappdir/config.json");
-                        URLConnection connection = url.openConnection();
-                        HttpURLConnection httpConnection = (HttpURLConnection) connection;
-
-                        if (httpConnection.getResponseCode() == HttpURLConnection.HTTP_OK) {
-                            String configJson = IOUtils.toString(httpConnection.getInputStream());
-                            Log.w("Config", configJson);
-                            ConfigPojo cp = gson.fromJson(configJson, ConfigPojo.class);
-
-                            FileOutputStream fos = openFileOutput("config.json", Context.MODE_PRIVATE);
-                            IOUtils.write(configJson, fos);
-                            IOUtils.closeQuietly(fos);
-
-                            NewApplication.getInstance().setConfigPojo(cp);
-                            httpConnection.disconnect();
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error Getting config", e);
-                    }
-
-                    // Connect to the web site
-
-                    cleanStorage(getDb(getApplicationContext()));
-
-                    URL url = new URL(NewApplication.getInstance().getConfigPojo().viceUrl1);
-                    URLConnection con = url.openConnection();
-                    InputStream in = con.getInputStream();
-                    String encoding = con.getContentEncoding();
-                    encoding = encoding == null ? "UTF-8" : encoding;
-                    String body = IOUtils.toString(in, encoding);
-
-                    URL url2 = new URL(NewApplication.getInstance().getConfigPojo().viceUrl2);
-                    URLConnection con2 = url2.openConnection();
-                    InputStream in2 = con2.getInputStream();
-                    String encoding2 = con2.getContentEncoding();
-                    encoding2 = encoding2 == null ? "UTF-8" : encoding2;
-                    String body2 = IOUtils.toString(in2, encoding2);
-
-
-                    body = body.replace("<![CDATA[", "").replace("]]>", "");
-
-                    body2 = body2.replace("<![CDATA[", "").replace("]]>", "");
-
-                    Document document = Jsoup.parse(body);
-                    Document document2 = Jsoup.parse(body2);
-                    Elements items = document.select(NewApplication.getInstance().getConfigPojo().articleCssPage1);
-                    Elements items2 = document2.select(NewApplication.getInstance().getConfigPojo().articleCssPage2);
-
-                    items.addAll(items2);
-                    List<ArsEntity> ents = new ArrayList<ArsEntity>();
-
-                    Long duh = System.currentTimeMillis();
-
-                    if (!items.isEmpty()) {
-                        for (int i = 0; i < items.size(); i++) {
-                            try {
-                                ArsEntity ae = new ArsEntity();
-
-                                Element el = items.get(i);
-
-                                Elements titleAnchor = el.select(NewApplication.getInstance().getConfigPojo().titleCss);
-                                if (!titleAnchor.isEmpty() && titleAnchor.first() != null && titleAnchor.first().hasText()) {
-                                    ae.setTitle(titleAnchor.first().text());
-                                }
-
-                                Elements linkAnchor = el.select(NewApplication.getInstance().getConfigPojo().linkCss); //.get(0);
-                                if (linkAnchor != null && !linkAnchor.isEmpty() && linkAnchor.first().hasAttr(NewApplication.getInstance().getConfigPojo().linkCssAttrName)) {
-                                    String linkPre = linkAnchor.first().attr(NewApplication.getInstance().getConfigPojo().linkCssAttrName);
-                                    if (NewApplication.getInstance().getConfigPojo().linkRegexFind != null && !NewApplication.getInstance().getConfigPojo().linkRegexFind.isEmpty()) {
-                                        linkPre = linkPre.replaceAll(NewApplication.getInstance().getConfigPojo().linkRegexFind, NewApplication.getInstance().getConfigPojo().linkRegexReplace);
-                                    }
-                                    if (!linkPre.startsWith("http")) {
-                                        linkPre = "http://www.vice.com" + linkPre;
-                                    }
-                                    ae.setLink(linkPre);
-                                }
-
-
-                                Elements divImage = el.select(NewApplication.getInstance().getConfigPojo().imageCss);
-                                if (divImage != null && !divImage.isEmpty() && divImage.first().hasAttr(NewApplication.getInstance().getConfigPojo().imageCssAttrName)) {
-                                    String imgUrls = divImage.first().attr(NewApplication.getInstance().getConfigPojo().imageCssAttrName);
-
-                                    if (NewApplication.getInstance().getConfigPojo().imageRegexFind != null && !NewApplication.getInstance().getConfigPojo().imageRegexFind.isEmpty()) {
-                                        imgUrls = imgUrls.replaceAll(NewApplication.getInstance().getConfigPojo().imageRegexFind, NewApplication.getInstance().getConfigPojo().imageRegexReplace);
-                                    }
-                                    if (!imgUrls.startsWith("http")) {
-                                        imgUrls = "http:" + imgUrls;
-                                    }
-                                    ae.setImgUrl(imgUrls);
-                                }
-
-                                Elements spanTime = el.select(NewApplication.getInstance().getConfigPojo().pubTimeCss);
-                                if (!spanTime.isEmpty()) {
-                                    try {
-                                        Element timeEl = spanTime.get(0);
-                                        String timeVal = timeEl.attr(NewApplication.getInstance().getConfigPojo().pubTimeAttrName);
-                                        DateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ssZ");
-                                        Date date = formatter.parse(timeVal);
-                                        ae.setPubDate(date);
-                                    } catch (Exception e) {
-                                        ae.setPubDate(new Date(duh));
-                                        duh -= 1000;
-                                    }
-                                } else {
-                                    ae.setPubDate(new Date(duh));
-                                    duh -= 1000;
-                                }
-                                ents.add(ae);
-                            } catch (Exception e) {
-                                Log.e(TAG, "problem parsing article", e);
-                            }
-
-                            //"yyyy-MM-dd HH:mm:ssXXX"
-                            //2014-11-01 18:53:00+00:00
-
-//                        if (el.classNames().contains("story-large")) {
-//
-//                            Elements cap = el.select("div.caption > a");
-//                            if (!cap.isEmpty()) {
-//                                String linkPre = cap.get(0).attr("href");
-//                                if (!linkPre.startsWith("http")) {
-//                                    linkPre = "http://www.vice.com" + linkPre;
-//                                }
-//                                ae.setLink(linkPre);
-//                                Elements elTitle = cap.get(0).getElementsByTag("h2");
-//                                String title = elTitle.get(0).text();
-//                                ae.setTitle(title);
-//                            }
-//
-//                            Elements img = el.select("img");
-//                            if (!img.isEmpty()) {
-//                                String imgUrls = img.get(0).attr("src");
-//                                imgUrls = imgUrls.replace("220x124", "640x360");
-//                                ae.setImgUrl(imgUrls);
-//                            }
-//
-//                            ae.setPubDate(new Date(duh));
-//                            duh -= 1000;
-//                        } else {
-//                            Elements elTitle = el.select("h2 > a");
-//                            if (!elTitle.isEmpty()) {
-//                                String title = elTitle.get(0).text();
-//                                ae.setTitle(title);
-//                                String linkPre = elTitle.get(0).attr("href");
-//                                if (!linkPre.startsWith("http")) {
-//                                    linkPre = "http://www.vice.com" + linkPre;
-//                                }
-//                                ae.setLink(linkPre);
-//                            }
-//                            Elements elPubDate = el.select("div.story_meta > span:first-child");
-//                            if (!elPubDate.isEmpty()) {
-//                                String pubDate = elPubDate.get(0).text();
-//                                try {
-//                                    ae.setPubDate(new Date(duh));
-//                                    duh -= 1000;
-//                                } catch (Exception e) {
-//                                    e.printStackTrace();
-//                                }
-//                            }
-//
-//                            Elements img = el.select("img");
-//                            if (!img.isEmpty()) {
-//                                String imgUrls = img.get(0).attr("src");
-//                                imgUrls = imgUrls.replace("220x124", "640x360");
-//                                ae.setImgUrl(imgUrls);
-//                            }
-//                        }
-
-                        }
-                    }
-
-//                List<Future<ArsEntity>> tasks = new ArrayList<Future<ArsEntity>>();
-//                for (ArsEntity ae : ents) {
-//                    ImageProcessorCallable ipc = new ImageProcessorCallable(ae, getTargetDir(getApplicationContext()), getApplicationContext(), getDb(getApplicationContext()));
-//                    tasks.add(NewApplication.getInstance().getThreadPoolExecutor().submit(ipc));
-//                }
-
-                    List<Future<ArsEntity>> tasks = new ArrayList<Future<ArsEntity>>();
-                    for (ArsEntity ae : ents) {
-                        if (!itemsTreeSetRef.contains(ae) || itemLookUp.get(ae.getLink()) == null ||
-                                itemLookUp.get(ae.getLink()).getType().equals(ArsEntity.NON_IMAGE)) {
-                            ImageProcessorCallable ipc = new ImageProcessorCallable(ae, getTargetDir(getApplicationContext()), getApplicationContext(), getDb(getApplicationContext()));
-                            tasks.add(NewApplication.getInstance().getThreadPoolExecutor().submit(ipc));
-                        }
-                    }
-
-                    for (ArsEntity ae : ents) {
-                        if (!itemsTreeSetRef.contains(ae) || itemLookUp.get(ae.getLink()) == null ||
-                                itemLookUp.get(ae.getLink()).getText() == null || itemLookUp.get(ae.getLink()).getText().isEmpty()) {
-                            TextProcessorCallable tpc = new TextProcessorCallable(ae, getTargetDir(getApplicationContext()), getApplicationContext(), getDb(getApplicationContext()));
-                            NewApplication.getInstance().getThreadPoolExecutor().submit(tpc);
-                        }
-                    }
-
-//            rrwl.writeLock().tryLock(3, TimeUnit.MINUTES);
-                    synchronized (itemsTreeSetRef) {
-                        for (Future<ArsEntity> future : tasks) {
-                            try {
-                                ArsEntity arsEntity = future.get(10, TimeUnit.MINUTES);
-                                if (!itemsTreeSetRef.add(arsEntity)) {
-                                    Log.w(TAG, "Already contained" + arsEntity);
-                                }
-                                itemLookUp.put(arsEntity.getLink(), arsEntity);
-
-                            } catch (InterruptedException e) {
-                                Log.e(TAG, "Got an interrupt while waiting to complete", e);
-                            } catch (ExecutionException e) {
-                                Log.e(TAG, "Got an execution exception while waiting for task to complete", e);
-                            } catch (TimeoutException e) {
-                                Log.e(TAG, "It took longer than 4 minutes an image to download. So going to cancel it", e);
-                                future.cancel(true);
-                            }
-                        }
-                    }
-
-
-                    if (itemsTreeSetRef.isEmpty()) {
-                        FileInputStream fis = openFileInput("list.json");
-                        String serial = IOUtils.toString(fis);
-                        TreeSet<ArsEntity> fromJson =
-                                gson.fromJson(serial, new TypeToken<TreeSet<ArsEntity>>() {
-                                }.getType());
-                        itemsTreeSetRef = fromJson;
-                        itemLookUp = new HashMap<String, ArsEntity>();
-                        for (ArsEntity arsEntity : fromJson.descendingSet()) {
-                            itemLookUp.put(arsEntity.getLink(), arsEntity);
-                        }
-                        IOUtils.closeQuietly(fis);
-                    }
-
-                    String serial = gson.toJson(itemsTreeSetRef);
-
-                    FileOutputStream fos = openFileOutput("list.json", Context.MODE_PRIVATE);
-                    IOUtils.write(serial, fos);
-                    IOUtils.closeQuietly(fos);
-                } else {
-                    FileInputStream fis = openFileInput("list.json");
-                    String serial = IOUtils.toString(fis);
-                    TreeSet<ArsEntity> fromJson =
-                            gson.fromJson(serial, new TypeToken<TreeSet<ArsEntity>>() {
-                            }.getType());
-                    itemsTreeSetRef = fromJson;
-                    itemLookUp = new HashMap<String, ArsEntity>();
-                    for (ArsEntity arsEntity : fromJson.descendingSet()) {
-                        itemLookUp.put(arsEntity.getLink(), arsEntity);
-                    }
-                    IOUtils.closeQuietly(fis);
-                }
-//            closeDb(getApplicationContext());
-                Bundle bnd = new Bundle();
-                bnd.putString("action", "update");
-                Log.e("DataFetch", "Creating Message");
-                Message msg = new Message();
-                msg.setData(bnd);
-                uiHandler.sendMessage(msg);
-            } catch (Exception e) {
-                Log.e(TAG, "Straight problem Parsing", e);
-                e.printStackTrace();
-            }
-        }
-
-
-    }
-
-
-    public void parse2() {
-        try {
-            // Connect to the web site
-
-            URL url = new URL(arsRSSFeedUrl);
-            URLConnection con = url.openConnection();
-            InputStream in = con.getInputStream();
-            String encoding = con.getContentEncoding();
-            encoding = encoding == null ? "UTF-8" : encoding;
-            String body = IOUtils.toString(in, encoding);
-
-            body = body.replace("<![CDATA[", "").replace("]]>", "");
-
-            Document document = Jsoup.parse(body);
-            Elements items = document.select("channel > item");
-
-            List<ArsEntity> ents = new ArrayList<ArsEntity>();
-
-            if (!items.isEmpty()) {
-                for (int i = 0; i < items.size(); i++) {
-                    ArsEntity ae = new ArsEntity();
-                    Element el = items.get(i);
-                    Elements elTitle = el.getElementsByTag("title");
-                    if (!elTitle.isEmpty()) {
-                        String title = elTitle.get(0).text();
-                        ae.setTitle(title);
-                    }
-                    Elements elLink = el.getElementsByTag("guid");
-                    if (!elLink.isEmpty()) {
-                        String link = elLink.get(0).text();
-                        ae.setLink(link);
-                    }
-                    Elements elPubDate = el.getElementsByTag("pubDate");
-                    if (!elPubDate.isEmpty()) {
-                        String pubDate = elPubDate.get(0).text();
-                        try {
-                            DateFormat formatter = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z");
-                            Date date = formatter.parse(pubDate);
-                            ae.setPubDate(date);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    }
-                    Elements encode = el.getElementsByTag("content:encoded");
-                    Element wrap = encode.get(0).getElementById("rss-wrap");
-
-//Sat, 26 Jul 2014 22:05:02 +0000
-//                    Element wrap = el.getElementById("rss-wrap");
-                    Elements img = wrap.getElementsByTag("img");
-                    if (!img.isEmpty()) {
-                        String imgUrls = img.get(0).attr("src");
-                        ae.setImgUrl(imgUrls);
-                    }
-                    ents.add(ae);
-                }
-            }
-
-            List<Future<ArsEntity>> tasks = new ArrayList<Future<ArsEntity>>();
-            for(ArsEntity ae : ents){
-                if(!itemsTreeSetRef.contains(ae) || itemLookUp.get(ae.getLink()) == null ||
-                        itemLookUp.get(ae.getLink()).getType().equals(ArsEntity.NON_IMAGE)) {
-                    ImageProcessorCallable ipc = new ImageProcessorCallable(ae, getTargetDir(getApplicationContext()), getApplicationContext(), getDb(getApplicationContext()));
-                    tasks.add(NewApplication.getInstance().getThreadPoolExecutor().submit(ipc));
-                }
-            }
-
-//            rrwl.writeLock().tryLock(3, TimeUnit.MINUTES);
-            synchronized (itemsTreeSetRef) {
-                for (Future<ArsEntity> future : tasks) {
-                    try {
-                        ArsEntity arsEntity = future.get(10, TimeUnit.MINUTES);
-                        itemsTreeSetRef.add(arsEntity);
-                        itemLookUp.put(arsEntity.getLink(),arsEntity);
-                    } catch (InterruptedException e) {
-                        Log.e(TAG, "Got an interrupt while waiting to complete", e);
-                    } catch (ExecutionException e) {
-                        Log.e(TAG, "Got an execution exception while waiting for task to complete", e);
-                    } catch (TimeoutException e) {
-                        Log.e(TAG, "It took longer than 4 minutes an image to download. So going to cancel it", e);
-                        future.cancel(true);
-                    }
-                }
-            }
-
-            for(ArsEntity ae : ents){
-                if(!itemsTreeSetRef.contains(ae) || itemLookUp.get(ae.getLink()) == null ||
-                        itemLookUp.get(ae.getLink()).getText() == null || itemLookUp.get(ae.getLink()).getText().isEmpty()) {
-                    TextProcessorCallable tpc = new TextProcessorCallable(ae, getTargetDir(getApplicationContext()), getApplicationContext(), getDb(getApplicationContext()));
-                    NewApplication.getInstance().getThreadPoolExecutor().submit(tpc);
-                }
-            }
-
-//            closeDb(getApplicationContext());
-            Bundle bnd = new Bundle();
-            bnd.putString("action","update");
-            Log.e("DataFetch","Creating Message");
-            Message msg = new Message();
-            msg.setData(bnd);
-            uiHandler.sendMessage(msg);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
 
     }
 
@@ -715,12 +335,19 @@ public class ArsDataFetcherService extends Service {
             ArsEntity tabent = getArsEntityById(arsEntity.getLink(),sqLiteDatabase);
             if(tabent == null) {
                 if (arsEntity.getImgUrl() != null && !arsEntity.getImgUrl().isEmpty()) {
-                    File downLoaded = downloadNewFile(arsEntity.getImgUrl(), idOne.toString() + ".jpg", imgDir);
+                    try {
+                        File downLoaded = downloadNewFile(arsEntity.getImgUrl(), idOne.toString() + ".jpg", imgDir, context);
 
-                    FileUtils.copyFileToDirectory(downLoaded,getContext().getFilesDir());
-                    arsEntity.setLocalImgPath(downLoaded.getPath());
-                    arsEntity.setType(ArsEntity.IMAGE_TYPE);
+                        FileUtils.copyFileToDirectory(downLoaded, getContext().getFilesDir());
+                        arsEntity.setLocalImgPath(downLoaded.getPath());
+                        arsEntity.setType(ArsEntity.IMAGE_TYPE);
+                    } catch (RuntimeException re) {
+                        Log.e(TAG,"Error downloading image",re);
+                        arsEntity.setLocalImgPath(null);
+                        arsEntity.setType(ArsEntity.NON_IMAGE);
+                    }
                 } else {
+                    arsEntity.setLocalImgPath(null);
                     arsEntity.setType(ArsEntity.NON_IMAGE);
                 }
                 type = NEW;
@@ -934,7 +561,7 @@ public class ArsDataFetcherService extends Service {
         return entries;
     }
 
-    public static File downloadNewFile(String downloadUrl, String filename, File parentDir) {
+    public static File downloadNewFile(String downloadUrl, String filename, File parentDir, Context context) {
         File file = new File(parentDir, filename);
         try {
             URL url = new URL(downloadUrl);
@@ -945,7 +572,17 @@ public class ArsDataFetcherService extends Service {
             if (httpConnection.getResponseCode() == HttpURLConnection.HTTP_OK) {
                 Log.d(TAG, "Opened Connection And got a 200 Response Code");
                 FileUtils.copyInputStreamToFile(httpConnection.getInputStream(), file);
+                FileInputStream fis = new FileInputStream(file);
+                Bitmap btm = null;
+                if(isTablet(context)) {
+                    btm = BitmapFactory.decodeStream(fis);
+                } else {
+                    btm = createScaledBitmapFromStream(fis,512,512);
+                }
 
+                btm.compress(Bitmap.CompressFormat.JPEG, 80, new FileOutputStream(file));
+                btm.recycle();
+                btm = null;
             }
         } catch (MalformedURLException me) {
             Log.e(TAG, "Malformed Url requested [" + downloadUrl + "]", me);
@@ -955,34 +592,66 @@ public class ArsDataFetcherService extends Service {
         return file;
     }
 
-    public ReentrantReadWriteLock getRrwl() {
-        return rrwl;
-    }
+    /**
+     * Read the image from the stream and create a bitmap scaled to the desired
+     * size.  Resulting bitmap will be at least as large as the
+     * desired minimum specified dimensions and will keep the image proportions
+     * correct during scaling.
+     */
+    static protected Bitmap createScaledBitmapFromStream( InputStream s, int minimumDesiredBitmapWidth, int minimumDesiredBitmapHeight ) {
 
-    public void setRrwl(ReentrantReadWriteLock rrwl) {
-        this.rrwl = rrwl;
-    }
+        final BufferedInputStream is = new BufferedInputStream(s, 32*1024);
+        try {
+            final BitmapFactory.Options decodeBitmapOptions = new BitmapFactory.Options();
+            // For further memory savings, you may want to consider using this option
+            decodeBitmapOptions.inPreferredConfig = Bitmap.Config.RGB_565; // Uses 2-bytes instead of default 4 per pixel
 
-    public TreeSet<ArsEntity> getItemsTreeSetRef() {
-        return itemsTreeSetRef;
-    }
+            if( minimumDesiredBitmapWidth >0 && minimumDesiredBitmapHeight >0 ) {
+                final BitmapFactory.Options decodeBoundsOptions = new BitmapFactory.Options();
+                decodeBoundsOptions.inJustDecodeBounds = true;
+                is.mark(32*1024); // 32k is probably overkill, but 8k is insufficient for some jpgs
+                BitmapFactory.decodeStream(is,null,decodeBoundsOptions);
+                is.reset();
 
-    public void setItemsTreeSetRef(TreeSet<ArsEntity> itemsTreeSetRef) {
-        this.itemsTreeSetRef = itemsTreeSetRef;
-        this.itemLookUp.clear();
+                final int originalWidth = decodeBoundsOptions.outWidth;
+                final int originalHeight = decodeBoundsOptions.outHeight;
 
-        for(ArsEntity arsEntity : itemsTreeSetRef.descendingSet()) {
-            itemLookUp.put(arsEntity.getLink(),arsEntity);
+                // inSampleSize prefers multiples of 2, but we prefer to prioritize memory savings
+                decodeBitmapOptions.inSampleSize = Math.max(1,Math.min(originalWidth / minimumDesiredBitmapWidth, originalHeight / minimumDesiredBitmapHeight));
+            }
+
+            return BitmapFactory.decodeStream(is,null,decodeBitmapOptions);
+
+        } catch( IOException e ) {
+            throw new RuntimeException(e); // this shouldn't happen
+        } finally {
+            try {
+                is.close();
+            } catch( IOException ignored ) {}
         }
+
     }
 
-    public HashMap<String, ArsEntity> getItemLookUp() {
-        return itemLookUp;
-    }
+//    public TreeSet<ArsEntity> getItemsTreeSetRef() {
+//        return itemsTreeSetRef;
+//    }
+//
+//    public void setItemsTreeSetRef(TreeSet<ArsEntity> itemsTreeSetRef) {
+//        this.itemsTreeSetRef = itemsTreeSetRef;
+//        this.itemLookUp.clear();
+//
+//        for(ArsEntity arsEntity : itemsTreeSetRef.descendingSet()) {
+//            itemLookUp.put(arsEntity.getLink(),arsEntity);
+//        }
+//    }
 
-    public void setItemLookUp(HashMap<String, ArsEntity> itemLookUp) {
-        this.itemLookUp = itemLookUp;
-    }
+//    public HashMap<String, ArsEntity> getItemLookUp() {
+//        return itemLookUp;
+//    }
+//
+//    public void setItemLookUp(HashMap<String, ArsEntity> itemLookUp) {
+//        this.itemLookUp = itemLookUp;
+//    }
 
 
     public static String getConentSource() {
@@ -1029,5 +698,11 @@ public class ArsDataFetcherService extends Service {
             }
         }
         return result;
+    }
+
+    public static boolean isTablet(Context context) {
+        return (context.getResources().getConfiguration().screenLayout
+                & Configuration.SCREENLAYOUT_SIZE_MASK)
+                >= Configuration.SCREENLAYOUT_SIZE_LARGE;
     }
 }

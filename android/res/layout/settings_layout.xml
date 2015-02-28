@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="600dp" android:layout_height="match_parent">
+    android:layout_width="fill_parent" android:layout_height="match_parent">
 
     <LinearLayout
         android:orientation="vertical"
@@ -26,7 +26,33 @@
         </RelativeLayout>
 
         <RelativeLayout
-            android:id="@+id/paperSelectLayout"
+        android:id="@+id/paperSelectLayout"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        >
+
+        <TextView
+            style="@style/CommonTextView"
+            android:layout_alignParentLeft="true"
+            android:text="Select a paper"
+            android:layout_width="wrap_content"
+            android:layout_height="fill_parent"
+            android:layout_centerInParent="true" />
+
+        <Spinner
+            android:id="@+id/paper_spinner"
+            android:layout_alignParentRight="true"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </RelativeLayout>
+
+
+
+        <View style="@style/CommonSeparator" />
+
+        <RelativeLayout
+            android:id="@+id/complaint"
             android:layout_width="fill_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
@@ -34,20 +60,14 @@
 
             <TextView
                 style="@style/CommonTextView"
+                android:id="@+id/problem"
                 android:layout_alignParentLeft="true"
-                android:text="Select a paper"
+                android:text="Problems Concerns Wants, Did I break something? Need something new? Click here let me know"
                 android:layout_width="wrap_content"
                 android:layout_height="fill_parent"
                 android:layout_centerInParent="true" />
 
-            <Spinner
-                android:id="@+id/paper_spinner"
-                android:layout_alignParentRight="true"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
         </RelativeLayout>
-
-        <View style="@style/CommonSeparator" />
 
     </LinearLayout>
 

@@ -24,6 +24,7 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.Spinner;
+import android.widget.TextView;
 
 
 import java.util.List;
@@ -41,13 +42,14 @@ import java.util.List;
  */
 public class SettingsActivity extends Activity implements AdapterView.OnItemSelectedListener {
 
-
-
     public String [] urls = {"http://www.evilcorgi.com/contentservice/site/vic",
             "http://www.evilcorgi.com/contentservice/site/nyt",
             "http://www.evilcorgi.com/contentservice/site/hfp",
             "http://www.evilcorgi.com/contentservice/site/usa",
             "http://www.evilcorgi.com/contentservice/site/ars"};
+
+    public int original;
+    public boolean changed;
 
 
     @Override
@@ -62,6 +64,7 @@ public class SettingsActivity extends Activity implements AdapterView.OnItemSele
             public void onClick(View v) {
                 Intent resultIntent = new Intent();
                 setResult(Activity.RESULT_OK, resultIntent);
+                resultIntent.putExtra("changed",changed);
                 finish();
             }
         });
@@ -83,17 +86,44 @@ public class SettingsActivity extends Activity implements AdapterView.OnItemSele
                 break;
             }
         }
+        original = i;
         spinner.setSelection(i);
+
+        TextView emailText = (TextView)findViewById(R.id.problem);
+        emailText.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(Intent.ACTION_SEND);
+                String[] to = {"dizzydeviltesting@gmail.com"};
+                intent.setData(Uri.parse("mailto:"));
+                intent.setType("text/plain");
+                intent.putExtra(Intent.EXTRA_EMAIL, to);
+                intent.putExtra(Intent.EXTRA_SUBJECT,"You Broke Something");
+                intent.putExtra(Intent.EXTRA_TEXT, "\n\n\nI always want feedback and If you want something I can add almost anything to the app you can think of. \n\n -Aaron");
+                startActivity(Intent.createChooser(intent, "Send Email"));
+                finish();
+            }
+        });
 
         Intent resultIntent = new Intent();
         setResult(Activity.RESULT_OK, resultIntent);
     }
 
+    @Override
+    public void onBackPressed() {
+        Intent mIntent = new Intent();
+        mIntent.putExtra("changed",changed);
+        setResult(RESULT_OK, mIntent);
+        super.onBackPressed();
+    }
 
     @Override
     public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
         if(position >= 0 && position < urls.length) {
             Utils.setPaper(view.getContext(),urls[position]);
+            if(position != original) {
+                changed = true;
+            }
         }
     }
 

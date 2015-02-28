@@ -94,10 +94,10 @@ public class AndroidLauncher extends AndroidApplication /*implements TextureView
 //        });
 
 
-        ArrayList<String> menuItems = new ArrayList<String>();
-        menuItems.add("One");
-        menuItems.add("Two");
-        menuItems.add("Three");
+//        ArrayList<String> menuItems = new ArrayList<String>();
+//        menuItems.add("One");
+//        menuItems.add("Two");
+//        menuItems.add("Three");
 
 
 //        dataAdapter = new MyCustomAdapter(this, R.layout.listitem, menuItems);
@@ -287,7 +287,10 @@ public class AndroidLauncher extends AndroidApplication /*implements TextureView
                 // The Intent's data Uri identifies which contact was selected.
 
                 // Do something with the contact here (bigger example below)
-                NewApplication.getInstance().performParse(true);
+                boolean update = data.getBooleanExtra("changed", false);
+                if(update) {
+                    NewApplication.getInstance().performParse(true);
+                }
             }
         }
 

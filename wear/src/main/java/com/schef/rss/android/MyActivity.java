@@ -10,6 +10,8 @@ import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.support.v13.app.FragmentPagerAdapter;
 import android.support.v4.view.ViewPager;
 import android.support.wearable.view.GridViewPager;
@@ -17,8 +19,10 @@ import android.support.wearable.view.WatchViewStub;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowInsets;
+import android.webkit.WebView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -29,6 +33,8 @@ import com.google.android.gms.wearable.Asset;
 import com.google.android.gms.wearable.DataApi;
 import com.google.android.gms.wearable.DataEvent;
 import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.DataItem;
+import com.google.android.gms.wearable.DataItemBuffer;
 import com.google.android.gms.wearable.DataMapItem;
 import com.google.android.gms.wearable.MessageApi;
 import com.google.android.gms.wearable.MessageEvent;
@@ -41,20 +47,27 @@ import com.google.android.gms.common.api.GoogleApiClient.ConnectionCallbacks;
 import com.google.android.gms.common.api.GoogleApiClient.OnConnectionFailedListener;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.nostra13.universalimageloader.core.ImageLoader;
+import com.nostra13.universalimageloader.core.ImageLoaderConfiguration;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MyActivity extends Activity implements DataApi.DataListener,
         MessageApi.MessageListener, NodeApi.NodeListener, ConnectionCallbacks, OnConnectionFailedListener {
@@ -69,7 +82,7 @@ public class MyActivity extends Activity implements DataApi.DataListener,
     private GoogleApiClient mGoogleApiClient;
     private boolean mResolvingError = false;
 
-    private List<Node> curNode = new ArrayList<Node>();
+//    private List<Node> curNode = new ArrayList<Node>();
 
     ViewPager mPager;
     FragmentPagerAdapter mAdapter;
@@ -83,14 +96,13 @@ public class MyActivity extends Activity implements DataApi.DataListener,
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-//        setContentView(R.layout.activity_my);
-//        final WatchViewStub stub = (WatchViewStub) findViewById(R.id.watch_view_stub);
-//        stub.setOnLayoutInflatedListener(new WatchViewStub.OnLayoutInflatedListener() {
-//            @Override
-//            public void onLayoutInflated(WatchViewStub stub) {
-//                mTextView = (TextView) stub.findViewById(R.id.text);
-//            }
-//        });
+
+        if(!ImageLoader.getInstance().isInited()) {
+            ImageLoaderConfiguration config = new ImageLoaderConfiguration.Builder(this).build();
+            ImageLoader.getInstance().init(config);
+        }
+
+
 
         mGoogleApiClient = new GoogleApiClient.Builder(this)
                 .addApi(Wearable.API)
@@ -116,7 +128,7 @@ public class MyActivity extends Activity implements DataApi.DataListener,
             }
         });
 
-        sampleGridPagerAdapter = new SampleGridPagerAdapter(this, getFragmentManager(), fromJson, mGoogleApiClient , curNode);
+        sampleGridPagerAdapter = new SampleGridPagerAdapter(this, getFragmentManager(), fromJson, mGoogleApiClient);
         pager.setAdapter(sampleGridPagerAdapter);
 
         context = getApplicationContext();
@@ -135,43 +147,13 @@ public class MyActivity extends Activity implements DataApi.DataListener,
 
             @Override
             public void onPageScrollStateChanged(int i) {
-                if(mGoogleApiClient != null && curNode != null && !curNode.isEmpty()) {
-                    if (mGoogleApiClient != null && curNode != null && !curNode.isEmpty()) {
-                        Wearable.MessageApi.sendMessage(
-                                mGoogleApiClient, curNode.get(0).getId(), "/stop", "2".getBytes()).setResultCallback(
-                                new ResultCallback<MessageApi.SendMessageResult>() {
-                                    @Override
-                                    public void onResult(MessageApi.SendMessageResult sendMessageResult) {
-                                        if (sendMessageResult.getStatus().isSuccess()) {
-                                            Log.e(TAG, "Failed to connect to Google Api Client with status: "
-                                                    + sendMessageResult.getStatus());
-                                        }
-                                    }
-                                }
-                        );
-                    }
-                }
+                StopPlaybackTask spt = new StopPlaybackTask();
+                spt.execute();
             }
         });
-    }
 
-
-    public static class HideProgressBarAfterLoad extends AsyncTask<Void, Void, Void> {
-
-        @Override
-        protected void onCancelled(Void aVoid) {
-            super.onCancelled(aVoid);
-        }
-
-        @Override
-        protected void onPostExecute(Void aVoid) {
-            super.onPostExecute(aVoid);
-        }
-
-        @Override
-        protected Void doInBackground(Void... params) {
-            return null;
-        }
+        GetLayoutTask glt = new GetLayoutTask();
+        glt.execute();
     }
 
     @Override
@@ -185,22 +167,8 @@ public class MyActivity extends Activity implements DataApi.DataListener,
                         if (nodeResult.getStatus().isSuccess()) {
                             Log.e(TAG, "Failed to connect to Google Api Client with status: "
                                     + nodeResult.getStatus());
-                            curNode.clear();
-                            curNode.addAll(nodeResult.getNodes());
-                            if(mGoogleApiClient != null && curNode != null && !curNode.isEmpty()) {
-                                Wearable.MessageApi.sendMessage(
-                                        mGoogleApiClient, curNode.get(0).getId(), "/getLayout", "2".getBytes()).setResultCallback(
-                                        new ResultCallback<MessageApi.SendMessageResult>() {
-                                            @Override
-                                            public void onResult(MessageApi.SendMessageResult sendMessageResult) {
-                                                if (sendMessageResult.getStatus().isSuccess()) {
-                                                    Log.e(TAG, "Failed to connect to Google Api Client with status: "
-                                                            + sendMessageResult.getStatus());
-                                                }
-                                            }
-                                        }
-                                );
-                            }
+                            UpdateLayoutTask ult = new UpdateLayoutTask();
+                            ult.execute();
                         }
                     }
                 });
@@ -214,26 +182,71 @@ public class MyActivity extends Activity implements DataApi.DataListener,
             Wearable.DataApi.addListener(mGoogleApiClient, this);
             Wearable.MessageApi.addListener(mGoogleApiClient, this);
             Wearable.NodeApi.addListener(mGoogleApiClient, this);
+            UpdateLayoutTask ult = new UpdateLayoutTask();
+            ult.execute();
         } else {
 
         }
     }
 
     @Override
-    protected void onStop() {
-        if (!mResolvingError) {
-            Wearable.MessageApi.sendMessage(
-                    mGoogleApiClient, curNode.get(0).getId(), "/stop", "2".getBytes()).setResultCallback(
-                    new ResultCallback<MessageApi.SendMessageResult>() {
+    protected void onResume() {
+        super.onResume();
+    }
+
+    @Override
+    protected void onRestart() {
+        super.onRestart();
+    }
+
+    @Override
+    protected void onPostResume() {
+        super.onPostResume();
+    }
+
+    public boolean getLayout() {
+        List<String> ids = getNodes();
+        boolean retValue = false;
+        if(mGoogleApiClient != null && ids != null && !ids.isEmpty()) {
+            PutDataMapRequest pdr = PutDataMapRequest.create("/fetchSectionLayout");
+            PutDataRequest request = pdr.asPutDataRequest();
+            pdr.getDataMap().putString("layout","fetch");
+            pdr.getDataMap().getLong("time",System.currentTimeMillis());
+            request = pdr.asPutDataRequest();
+            Wearable.DataApi.putDataItem(mGoogleApiClient, request).setResultCallback(
+                    new ResultCallback<DataApi.DataItemResult> () {
                         @Override
-                        public void onResult(MessageApi.SendMessageResult sendMessageResult) {
-                            if (sendMessageResult.getStatus().isSuccess()) {
-                                Log.e(TAG, "Failed to connect to Google Api Client with status: "
-                                        + sendMessageResult.getStatus());
+                        public void onResult(DataApi.DataItemResult result) {
+                            if(result.getStatus() != null) {
+                                Log.e(TAG, "Added layout data item with status: "
+                                        + result.getStatus());
                             }
                         }
                     }
             );
+            retValue = true;
+        }
+        return retValue;
+    }
+
+    @Override
+    protected void onStop() {
+        if (!mResolvingError) {
+//            List<String> ids = getNodes();
+//            if(ids != null && !ids.isEmpty()) {
+//                Wearable.MessageApi.sendMessage(
+//                        mGoogleApiClient, ids.get(0), "/stop", "2".getBytes()).setResultCallback(
+//                        new ResultCallback<MessageApi.SendMessageResult>() {
+//                            @Override
+//                            public void onResult(MessageApi.SendMessageResult sendMessageResult) {
+//                                if (sendMessageResult.getStatus().isSuccess()) {
+//                                    Log.e(TAG, "Failed to connect to Google Api Client with status: "
+//                                            + sendMessageResult.getStatus());
+//                                }
+//                            }
+//                        }
+//                );
+//            }
 
 
             Wearable.DataApi.removeListener(mGoogleApiClient, this);
@@ -283,25 +296,40 @@ public class MyActivity extends Activity implements DataApi.DataListener,
                 if (uri.getPath().startsWith("/sectionLayout")) {
                     // Set the data of the message to be the bytes of the Uri.
                     try {
-                        String tmp = new String(event.getDataItem().getData(), "UTF-8");
-                        tmp = tmp.substring(tmp.indexOf("[{"));
-                        Gson gson = new Gson();
-                        TreeSet<ArsEntity> newFromJson =
-                                gson.fromJson(tmp , new TypeToken<TreeSet<ArsEntity>>() {}.getType());
-
-                        fromJson.clear();
-                        fromJson.addAll(newFromJson);
-
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                sampleGridPagerAdapter.notifyDataSetChanged();
-                            }
-                        });
-
-                        DownloadFilesTask downloadFilesTask = new DownloadFilesTask();
-                        downloadFilesTask.execute();
-
+                        processLayout(event.getDataItem());
+//                        String tmp = new String(event.getDataItem().getData(), "UTF-8");
+//                        tmp = tmp.substring(tmp.indexOf("[{"));
+//                        Gson gson = new Gson();
+//                        TreeSet<ArsEntity> newFromJson =
+//                                gson.fromJson(tmp , new TypeToken<TreeSet<ArsEntity>>() {}.getType());
+//
+//                        FileOutputStream fos = openFileOutput("list.json", Context.MODE_PRIVATE);
+//                        IOUtils.write(tmp, fos);
+//                        IOUtils.closeQuietly(fos);
+//
+//                        fromJson.clear();
+//                        fromJson.addAll(newFromJson);
+//
+//                        runOnUiThread(new Runnable() {
+//                            @Override
+//                            public void run() {
+//                                sampleGridPagerAdapter.notifyDataSetChanged();
+//                            }
+//                        });
+//
+//                        Wearable.DataApi.deleteDataItems(mGoogleApiClient, uri).setResultCallback(
+//                                new ResultCallback<DataApi.DeleteDataItemsResult>() {
+//                                    @Override
+//                                    public void onResult(DataApi.DeleteDataItemsResult deleteDataItemsResult) {
+//                                        if (deleteDataItemsResult.getStatus().isSuccess()) {
+//                                            Log.e(TAG, "Deleted Uri " + uri + " with status: "
+//                                                    + deleteDataItemsResult.getStatus());
+//                                        }
+//                                    }
+//                                });
+//
+//                        DownloadFilesTask downloadFilesTask = new DownloadFilesTask();
+//                        downloadFilesTask.execute();
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -358,7 +386,7 @@ public class MyActivity extends Activity implements DataApi.DataListener,
 
         PendingResult<DataApi.GetFdForAssetResult> pr =  Wearable.DataApi.getFdForAsset(mGoogleApiClient, asset);
         if(pr != null) {
-            DataApi.GetFdForAssetResult getFdForAssetResult = pr.await();
+            DataApi.GetFdForAssetResult getFdForAssetResult = pr.await(5000,TimeUnit.MILLISECONDS);
             if(getFdForAssetResult != null) {
                 InputStream assetInputStream = getFdForAssetResult.getInputStream();
                 if (assetInputStream == null) {
@@ -392,11 +420,12 @@ public class MyActivity extends Activity implements DataApi.DataListener,
 
     @Override
     public void onPeerConnected(Node node) {
-        curNode.add(node);
+//        curNode.add(node);
 
-        if(mGoogleApiClient != null && curNode != null && !curNode.isEmpty()) {
+        List<String> ids = getNodes();
+        if(mGoogleApiClient != null && ids != null && !ids.isEmpty()) {
             Wearable.MessageApi.sendMessage(
-                    mGoogleApiClient, curNode.get(0).getId(), "/getLayout", "2".getBytes()).setResultCallback(
+                    mGoogleApiClient, ids.get(0), "/getLayout", "2".getBytes()).setResultCallback(
                     new ResultCallback<MessageApi.SendMessageResult>() {
                         @Override
                         public void onResult(MessageApi.SendMessageResult sendMessageResult) {
@@ -412,7 +441,7 @@ public class MyActivity extends Activity implements DataApi.DataListener,
 
     @Override
     public void onPeerDisconnected(Node node) {
-        curNode.remove(node);
+//        curNode.remove(node);
     }
 
     private class DownloadFilesTask extends AsyncTask<Void, Void, Void> {
@@ -420,22 +449,21 @@ public class MyActivity extends Activity implements DataApi.DataListener,
 
         @Override
         protected Void doInBackground(Void... params) {
-//            String [] exts = {"jpg"};
-//            Map<String,String> fileMap = new HashMap<String,String>();
+
             Map<String,File> localfileMap = new HashMap<String,File>();
             Collection<File> files =  FileUtils.listFiles(context.getFilesDir(), null, false);
             for(File file : files) {
                 localfileMap.put(file.getName(),file);
             }
-//            for(ArsEntity arsEntity : fromJson) {
-//                fileMap.put(arsEntity.getLocalImgPath(),arsEntity.getLocalImgPath());
-//            }
+
             List<ArsEntity> neededImages = new ArrayList<ArsEntity>();
             for(ArsEntity arsEntity : fromJson) {
-                if(localfileMap.containsKey(arsEntity.getLocalImgPath().replaceAll(".*/",""))) {
-                    localfileMap.remove(arsEntity.getLocalImgPath().replaceAll(".*/",""));
-                } else {
-                    neededImages.add(arsEntity);
+                if(arsEntity.getLocalImgPath() != null) {
+                    if (localfileMap.containsKey(arsEntity.getLocalImgPath().replaceAll(".*/", ""))) {
+                        localfileMap.remove(arsEntity.getLocalImgPath().replaceAll(".*/", ""));
+                    } else {
+                        neededImages.add(arsEntity);
+                    }
                 }
             }
 
@@ -464,4 +492,143 @@ public class MyActivity extends Activity implements DataApi.DataListener,
             return null;
         }
     }
+
+
+    public void promptErrorConnecting (final Context cont) {
+        try {
+            Handler handler = new Handler(Looper.getMainLooper());
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    Toast.makeText(cont, "Error Connecting to Phone please quit app and retry", Toast.LENGTH_LONG).show();
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "Exception while trying to send not enough disk space toast",e);
+        }
+    }
+
+    private List<String> getNodes() {
+        List<String> results = new ArrayList<String>();
+        if(mGoogleApiClient != null) {
+            NodeApi.GetConnectedNodesResult nodes =
+                    Wearable.NodeApi.getConnectedNodes(mGoogleApiClient).await(500,TimeUnit.MILLISECONDS);
+            if(nodes != null && nodes.getNodes() != null) {
+                for (Node node : nodes.getNodes()) {
+                    results.add(node.getId());
+                }
+            } else {
+                promptErrorConnecting(this.context);
+            }
+        } else {
+            promptErrorConnecting(this.context);
+        }
+        return results;
+    }
+
+    private class GetLayoutTask extends AsyncTask<Void, Void, Void> {
+
+        @Override
+        protected Void doInBackground(Void... params) {
+            List<String> ids = getNodes();
+            if(mGoogleApiClient != null && ids != null && !ids.isEmpty()) {
+                Uri fetchUri = new Uri.Builder().scheme("wear").path("/sectionLayout").build();
+                PendingResult<DataItemBuffer> itemResults = Wearable.DataApi.getDataItems(mGoogleApiClient, fetchUri);
+
+                DataItemBuffer dir = itemResults.await(5000,TimeUnit.MILLISECONDS);
+                if(dir != null && dir.getStatus().isSuccess()) {
+                    final ArrayList<DataItem> items = FreezableUtils.freezeIterable(dir);
+                    if(items != null && !items.isEmpty()) {
+                        processLayout(items.get(0));
+                    }
+                }
+            }
+            return null;
+        }
+    }
+
+    DownloadFilesTask downloadFilesTask = null;
+
+    public synchronized void processLayout (DataItem item) {
+        try {
+            String tmp = new String(item.getData(), "UTF-8");
+            tmp = tmp.substring(tmp.indexOf("[{"));
+            Gson gson = new Gson();
+            TreeSet<ArsEntity> newFromJson =
+                    gson.fromJson(tmp, new TypeToken<TreeSet<ArsEntity>>() {
+                    }.getType());
+
+            FileOutputStream fos = openFileOutput("list.json", Context.MODE_PRIVATE);
+            IOUtils.write(tmp, fos);
+            IOUtils.closeQuietly(fos);
+
+            fromJson.clear();
+            fromJson.addAll(newFromJson);
+
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    sampleGridPagerAdapter.notifyDataSetChanged();
+                }
+            });
+
+            if(downloadFilesTask == null || downloadFilesTask.getStatus() == AsyncTask.Status.FINISHED) {
+                DownloadFilesTask downloadFilesTask = new DownloadFilesTask();
+                downloadFilesTask.execute();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private class UpdateLayoutTask extends AsyncTask<Void, Void, Void> {
+
+        @Override
+        protected Void doInBackground(Void... params) {
+            List<String> ids = getNodes();
+            if(mGoogleApiClient != null && ids != null && !ids.isEmpty()) {
+                Wearable.MessageApi.sendMessage(
+                        mGoogleApiClient, ids.get(0), "/getLayout", "2".getBytes()).setResultCallback(
+                        new ResultCallback<MessageApi.SendMessageResult>() {
+                            @Override
+                            public void onResult(MessageApi.SendMessageResult sendMessageResult) {
+                                if (sendMessageResult.getStatus().isSuccess()) {
+                                    Log.e(TAG, "Failed to connect to Google Api Client with status: "
+                                            + sendMessageResult.getStatus());
+                                }
+                            }
+                        }
+                );
+            }
+            return null;
+        }
+    }
+
+    private class StopPlaybackTask extends AsyncTask<Void, Void, Void> {
+
+        @Override
+        protected Void doInBackground(Void... params) {
+            List<String> ids = getNodes();
+            if(mGoogleApiClient != null && ids != null && !ids.isEmpty()) {
+                Wearable.MessageApi.sendMessage(
+                        mGoogleApiClient, ids.get(0), "/stop", "2".getBytes()).setResultCallback(
+                        new ResultCallback<MessageApi.SendMessageResult>() {
+                            @Override
+                            public void onResult(MessageApi.SendMessageResult sendMessageResult) {
+                                if (sendMessageResult.getStatus().isSuccess()) {
+                                    Log.e(TAG, "Failed to connect to Google Api Client with status: "
+                                            + sendMessageResult.getStatus());
+                                }
+                            }
+                        }
+                );
+            }
+            return null;
+        }
+    }
+
+
+
+
+
 }

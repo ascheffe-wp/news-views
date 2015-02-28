@@ -1,18 +1,14 @@
 package com.schef.rss.android;
 
-import android.content.ContentValues;
-import android.database.Cursor;
 
 import java.io.Serializable;
 import java.util.Date;
-import java.util.Locale;
 
 /**
  * Created by scheffela on 7/26/14.
  */
 public class ArsEntity implements Comparable, Serializable {
 
-    protected static final String TAG = ArsEntity.class.getSimpleName();
 
 
     public static final int NON_IMAGE = 0;
@@ -25,6 +21,9 @@ public class ArsEntity implements Comparable, Serializable {
     public Integer type;
     public Date lmt;
     public Date pubDate;
+    public String text;
+    public String pubName;
+    public int order;
 
     public ArsEntity() {
         super();
@@ -86,10 +85,45 @@ public class ArsEntity implements Comparable, Serializable {
         this.pubDate = pubDate;
     }
 
+    public String getText() {
+        return text;
+    }
+
+    public int getOrder() {
+        return order;
+    }
+
+    public void setOrder(int order) {
+        this.order = order;
+    }
+
+    public void setText(String localText) {
+
+        localText = localText.replaceAll("<.*?>", "").replaceAll("\\(.*?\\)", "");
+        localText = localText.replaceAll("\\n", "").replaceAll(":", "");
+        localText = localText.replaceAll("&.{0,10};", "").replaceAll("\\[", "");
+        localText = localText.replaceAll("\\]", "").replaceAll("-", "");
+        localText = localText.replaceAll("\\.", "\\. ").replaceAll("' ", " ");
+        localText = localText.replaceAll("\u201C", "\"").replaceAll("\u201D", "\"");
+        localText = localText.replaceAll("\u2018", "").replaceAll("\u2019", "");
+        localText = localText.replaceAll("\\?", " ");
+
+        this.text = localText;
+    }
+
+    public String getPubName() {
+        return pubName;
+    }
+
+    public void setPubName(String pubName) {
+        this.pubName = pubName;
+    }
+
     @Override
     public int compareTo(Object another) {
         ArsEntity anotherArs = (ArsEntity) another;
-        return anotherArs.getPubDate().compareTo(this.getPubDate());
+        int cmp = this.order > anotherArs.order ? +1 : this.order < anotherArs.order ? -1 : 0;
+        return cmp;
     }
 
     @Override
@@ -102,6 +136,7 @@ public class ArsEntity implements Comparable, Serializable {
                 ", type=" + type +
                 ", lmt=" + lmt +
                 ", pubDate=" + pubDate +
+                ", order=" + order +
                 '}';
     }
 
@@ -122,7 +157,7 @@ public class ArsEntity implements Comparable, Serializable {
             return false;
         if (title != null ? !title.equals(arsEntity.title) : arsEntity.title != null) return false;
         if (type != null ? !type.equals(arsEntity.type) : arsEntity.type != null) return false;
-
+        if (order != arsEntity.order) return false;
         return true;
     }
 
@@ -135,6 +170,20 @@ public class ArsEntity implements Comparable, Serializable {
         result = 31 * result + (type != null ? type.hashCode() : 0);
         result = 31 * result + (lmt != null ? lmt.hashCode() : 0);
         result = 31 * result + (pubDate != null ? pubDate.hashCode() : 0);
+        result = 31 * result + (order);
         return result;
+    }
+
+    public ArsEntity copyAll (ArsEntity arsEntity) {
+        this.setPubDate(arsEntity.getPubDate());
+        this.setText(arsEntity.getText());
+        this.setLink(arsEntity.getLink());
+        this.setLmt(arsEntity.getLmt());
+        this.setTitle(arsEntity.getTitle());
+        this.setImgUrl(arsEntity.getImgUrl());
+        this.setLocalImgPath(arsEntity.getLocalImgPath());
+        this.setType(arsEntity.getType());
+        this.setOrder(arsEntity.getOrder());
+        return this;
     }
 }

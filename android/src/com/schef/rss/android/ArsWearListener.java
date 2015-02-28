@@ -1,7 +1,10 @@
 package com.schef.rss.android;
 
 import android.annotation.TargetApi;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Point;
@@ -11,6 +14,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
+import android.support.v4.content.LocalBroadcastManager;
 import android.util.JsonReader;
 import android.util.Log;
 
@@ -41,6 +45,8 @@ import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
 import com.schef.rss.android.db.ArsEntity;
 
+import org.jsoup.Connection;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -60,6 +66,8 @@ import java.util.UUID;
 public class ArsWearListener extends WearableListenerService {
 
     protected static final String TAG = ArsWearListener.class.getSimpleName();
+
+    public static final String BROADCAST_ACTION = "com.schef.rss.android.UPATEWEAR";
 
     private GoogleApiClient mGoogleApiClient;
     private boolean mResolvingError = true;
@@ -90,10 +98,19 @@ public class ArsWearListener extends WearableListenerService {
         mTts = new TextToSpeech(getApplicationContext(), textListener);
         setupUtterance();
         mTts.setOnUtteranceCompletedListener(new MyOnUtteranceCompletedListener(this));
-
-
         startGoogleApiClient();
+
+
+        IntentFilter mStatusIntentFilter = new IntentFilter(BROADCAST_ACTION);
+        ResponseReceiver mDownloadStateReceiver = new ResponseReceiver();
+        mDownloadStateReceiver.arsWearListener = this;
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+                mDownloadStateReceiver,
+                mStatusIntentFilter);
+
         super.onCreate();
+
+
     }
 
     @TargetApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1)
@@ -105,6 +122,8 @@ public class ArsWearListener extends WearableListenerService {
     public int onStartCommand(Intent intent, int flags, int startId) {
         return super.onStartCommand(intent, flags, startId);
     }
+
+
 
     public void startGoogleApiClient() {
         if (mResolvingError) {
@@ -218,6 +237,8 @@ public class ArsWearListener extends WearableListenerService {
                                     }
                                 }
                             });
+                } else if (uri.getPath().startsWith("/fetchSectionLayout")) {
+                    updateLayoutOnWear();
                 }
             }
         }
@@ -226,102 +247,95 @@ public class ArsWearListener extends WearableListenerService {
 
     public static boolean speaking = false;
 
+
+    public void updateLayoutOnWear () {
+        PutDataMapRequest pdr = PutDataMapRequest.create("/sectionLayout");
+        PutDataRequest request = pdr.asPutDataRequest();
+        Gson gson = new Gson();
+
+        String json = gson.toJson(NewApplication.getInstance().getItemsTreeSet());
+        json = json.replaceAll("\"text\":\"(?:[^\"\\\\]|\\\\.)*\",","");
+        pdr.getDataMap().putString("layout",json);
+        request = pdr.asPutDataRequest();
+        Wearable.DataApi.putDataItem(mGoogleApiClient, request).setResultCallback(
+                new ResultCallback<DataApi.DataItemResult> () {
+                    @Override
+                    public void onResult(DataApi.DataItemResult result) {
+                        if(result.getStatus() != null) {
+                            Log.e(TAG, "Added layout data item with status: "
+                                    + result.getStatus());
+                        }
+                    }
+                }
+        );
+
+    }
+
     @Override
     public void onMessageReceived(MessageEvent messageEvent) {
         super.onMessageReceived(messageEvent);
-
-//        if (Log.isLoggable(TAG, Log.DEBUG)) {
         Log.d(TAG, "onMessageReceived: " + messageEvent);
-//        }
 
         // Check to see if the message is to start an activity
         if (messageEvent.getPath().equals("/getLayout")) {
-//
             try {
-
-                PutDataMapRequest pdr = PutDataMapRequest.create("/sectionLayout");
-                PutDataRequest request = pdr.asPutDataRequest();
-                Gson gson = new Gson();
-
-                String json = gson.toJson(NewApplication.getInstance().getItemsTreeSet());
-                json = json.replaceAll("\"text\":\"(?:[^\"\\\\]|\\\\.)*\",","");
-                pdr.getDataMap().putString("layout",json);
-                request = pdr.asPutDataRequest();
-                Wearable.DataApi.putDataItem(mGoogleApiClient, request).setResultCallback(
-                        new ResultCallback<DataApi.DataItemResult> () {
-                            @Override
-                            public void onResult(DataApi.DataItemResult result) {
-                                if(result.getStatus() != null) {
-                                    Log.e(TAG, "Added layout data item with status: "
-                                            + result.getStatus());
-                                }
-                            }
-                        }
-                );
-
-//                for(ArsEntity arsEntity : NewApplication.getInstance().getItemsTreeSet()) {
-//                    try {
-//                        postAsset(arsEntity.getLocalImgPath());
-//                    } catch (Exception e) {
-//                        Log.e(TAG,"Problem Posting Asset",e);
-//                    }
-//                }
-
+                updateLayoutOnWear();
             } catch (Exception e) {
+                Log.e(TAG,"Error getting layout",e);
             }
 
         } else if (messageEvent.getPath().equals("/start")) {
 
-                try {
-                    synchronized (this) {
-                        if (txtInit && mTts != null && !mTts.isSpeaking()) {
-                            byte[] msg = messageEvent.getData();
-                            String msgString = new String(msg, "UTF-8");
-                            if (NewApplication.getInstance().mService != null &&
-                                    NewApplication.getInstance().mService.getItemLookUp().containsKey(msgString)) {
-                                ArsEntity arsEntity = NewApplication.getInstance().mService.getItemLookUp().get(msgString);
-                                String str = arsEntity.getText();
+            try {
+                synchronized (this) {
+                    if (txtInit && mTts != null && !mTts.isSpeaking()) {
+                        byte[] msg = messageEvent.getData();
+                        String msgString = new String(msg, "UTF-8");
+                        if (NewApplication.getInstance().mService != null &&
+                                NewApplication.getInstance().getItemsLookup().containsKey(msgString)) {
+                            ArsEntity arsEntity = NewApplication.getInstance().getItemsLookup().get(msgString);
+                            String str = arsEntity.getText();
 
-                                if (str != null && !str.isEmpty()) {
-                                    str = str.replaceAll("<.*?>", "").replaceAll("\\(.*?\\)", "");
-                                    str = str.replaceAll("\\n", "").replaceAll(":", "");
-                                    str = str.replaceAll("&.{0,10};", "").replaceAll("\\[", "");
-                                    str = str.replaceAll("\\]", "").replaceAll("-", "");
-                                    str = str.replaceAll("\\.", "\\. ").replaceAll("' ", " ");
-                                    str = str.replaceAll("\u201C", "\"").replaceAll("\u201D", "\"");
-                                    str = str.replaceAll("\u2018", "").replaceAll("\u2019", "");
+                            if (str != null && !str.isEmpty()) {
+                                str = str.replaceAll("<.*?>", "").replaceAll("\\(.*?\\)", "");
+                                str = str.replaceAll("\\n", "").replaceAll(":", "");
+                                str = str.replaceAll("&.{0,10};", "").replaceAll("\\[", "");
+                                str = str.replaceAll("\\]", "").replaceAll("-", "");
+                                str = str.replaceAll("\\.", "\\. ").replaceAll("' ", " ");
+                                str = str.replaceAll("\u201C", "\"").replaceAll("\u201D", "\"");
+                                str = str.replaceAll("\u2018", "").replaceAll("\u2019", "");
 //                            str = str.replaceAll("&", " and ");
 
 
-                                    StringBuilder sb = new StringBuilder(str);
+                                StringBuilder sb = new StringBuilder(str);
 
-                                    sb.insert(0, "Brought to you by Vice.com.  ");
+                                sb.insert(0, "Brought to you by Vice.com.  ");
 
 
-                                    while (!str.isEmpty()) {
-                                        int strLoc = 3800;
-                                        if (str.length() > strLoc) {
-                                            strLoc = str.indexOf(" ", 3800);
-                                        } else {
-                                            strLoc = str.length();
-                                        }
-                                        String sub = str.substring(0, strLoc);
-                                        if (txtInit) {
-                                            HashMap<String, String> map = new HashMap<String, String>();
-                                            map.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, UUID.randomUUID().toString());
-                                            mTts.speak(sub, TextToSpeech.QUEUE_ADD, map);
-                                        }
-                                        str = str.substring(strLoc);
+                                while (!str.isEmpty()) {
+                                    int strLoc = 3800;
+                                    if (str.length() > strLoc) {
+                                        strLoc = str.indexOf(" ", 3800);
+                                    } else {
+                                        strLoc = str.length();
                                     }
-                                    speaking = true;
-
+                                    String sub = str.substring(0, strLoc);
+                                    if (txtInit) {
+                                        HashMap<String, String> map = new HashMap<String, String>();
+                                        map.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, UUID.randomUUID().toString());
+                                        mTts.speak(sub, TextToSpeech.QUEUE_ADD, map);
+                                    }
+                                    str = str.substring(strLoc);
                                 }
+                                speaking = true;
+
                             }
                         }
                     }
-                    }catch(Exception e){
-
-                    }
+                }
+            }catch(Exception e){
+                Log.e(TAG,"Error Starting playback",e);
+            }
 
         } else if (messageEvent.getPath().equals("/stop")) {
             if(txtInit) {
@@ -382,13 +396,25 @@ public class ArsWearListener extends WearableListenerService {
 //        request.putAsset(url, asset);
 //        Wearable.DataApi.putDataItem(mGoogleApiClient, request);
 
+
+
+
         Bitmap b = BitmapFactory.decodeFile(url);
         PutDataMapRequest putRequest = PutDataMapRequest.create(url);
         DataMap map = putRequest.getDataMap();
 
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
-        b.compress(Bitmap.CompressFormat.PNG, 80, stream);
-        stream.flush();
+        int imageHeight = b.getHeight();
+        int imageWidth = b.getHeight();
+        if(imageHeight > 320 || imageWidth > 320) {
+            Bitmap b2 = Bitmap.createScaledBitmap(b, 320, 320, true);
+            b2.compress(Bitmap.CompressFormat.PNG, 80, stream);
+            stream.flush();
+            b.recycle();
+        } else {
+            b.compress(Bitmap.CompressFormat.PNG, 80, stream);
+            stream.flush();
+        }
         byte[] byteArray = stream.toByteArray();
         Asset asset = Asset.createFromBytes(byteArray);
         map.putAsset("profileImage", asset);
@@ -471,6 +497,20 @@ public class ArsWearListener extends WearableListenerService {
         }
     }
 
+    // Broadcast receiver for receiving status updates from the IntentService
+    private class ResponseReceiver extends BroadcastReceiver
+    {
+        public ArsWearListener arsWearListener;
+
+        // Prevents instantiation
+        private ResponseReceiver() {
+        }
+
+        // Called when the BroadcastReceiver gets an Intent it's registered to receive
+        public void onReceive(Context context, Intent intent) {
+            arsWearListener.updateLayoutOnWear();
+        }
+    }
 
 
 }
